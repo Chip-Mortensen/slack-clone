@@ -4,15 +4,111 @@ import type { Message, DirectMessage } from '@/app/types'
 import MessageReactions from './MessageReactions'
 import UserAvatar from './UserAvatar'
 import { useSupabase } from '../supabase-provider'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
+import { Paperclip } from 'lucide-react'
+import MessageContent from './MessageContent'
 
 interface MessageListProps {
   messages: (Message | DirectMessage)[]
+  hasMore: boolean
+  loadMore: () => void
+  loading: boolean
 }
 
-export default function MessageList({ messages }: MessageListProps) {
+export default function MessageList({ messages, hasMore, loadMore, loading }: MessageListProps) {
   const { supabase } = useSupabase()
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const observerRef = useRef<HTMLDivElement>(null)
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
+
+  const isNearBottom = () => {
+    const container = containerRef.current
+    if (container) {
+      const { scrollHeight, scrollTop, clientHeight } = container
+      return scrollHeight - scrollTop - clientHeight < 100
+    }
+    return false
+  }
+
+  const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
+    const container = containerRef.current
+    if (container) {
+      container.scrollTop = container.scrollHeight
+    }
+  }
+
+  // Handle scroll events to determine if we should auto-scroll
+  const handleScroll = () => {
+    setShouldAutoScroll(isNearBottom())
+  }
+
+  // Handle initial load and new messages
+  useEffect(() => {
+    if (messages.length > 0) {
+      if (isInitialLoad) {
+        scrollToBottom('auto')
+        setIsInitialLoad(false)
+        setShouldAutoScroll(true)
+      } else if (shouldAutoScroll) {
+        scrollToBottom('smooth')
+      }
+    }
+  }, [messages, isInitialLoad, shouldAutoScroll])
+
+  // Reset states when channel changes
+  useEffect(() => {
+    setIsInitialLoad(true)
+    setShouldAutoScroll(true)
+  }, [messages.length === 0])
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    console.log('Setting up observer with:', {
+      hasMore,
+      loading,
+      containerExists: !!containerRef.current,
+      targetExists: !!observerRef.current
+    })
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        console.log('Observer callback:', {
+          isIntersecting: entries[0].isIntersecting,
+          hasMore,
+          loading,
+          intersectionRatio: entries[0].intersectionRatio
+        })
+
+        if (entries[0].isIntersecting && hasMore && !loading) {
+          console.log('Triggering loadMore')
+          loadMore()
+        }
+      },
+      { 
+        root: containerRef.current,
+        threshold: 0,
+        rootMargin: '200px 0px'
+      }
+    )
+
+    const target = observerRef.current
+    if (target) {
+      console.log('Observing target element')
+      observer.observe(target)
+    } else {
+      console.log('No target element found')
+    }
+
+    return () => {
+      if (target) {
+        console.log('Cleaning up observer')
+        observer.unobserve(target)
+      }
+    }
+  }, [hasMore, loading, loadMore])
 
   useEffect(() => {
     async function getCurrentUser() {
@@ -27,24 +123,26 @@ export default function MessageList({ messages }: MessageListProps) {
   const getMessageDisplay = (message: Message | DirectMessage) => {
     const isChannelMessage = 'profiles' in message
     
-    // For channel messages
     if (isChannelMessage) {
       return {
         username: message.profiles.username,
         avatarUrl: message.profiles.avatar_url,
         content: message.content,
         timestamp: new Date(message.created_at),
-        isChannelMessage: true
+        isChannelMessage: true,
+        fileUrl: message.file_url,
+        fileName: message.file_name
       }
     }
     
-    // For direct messages
     return {
       username: message.sender?.username || 'Unknown User',
       avatarUrl: message.sender?.avatar_url,
       content: message.message,
       timestamp: new Date(message.created_at),
-      isChannelMessage: false
+      isChannelMessage: false,
+      fileUrl: message.file_url,
+      fileName: message.file_name
     }
   }
 
@@ -104,14 +202,41 @@ export default function MessageList({ messages }: MessageListProps) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 bg-white messages-container">
+    <div 
+      ref={containerRef}
+      onScroll={handleScroll}
+      className="flex-1 overflow-y-auto p-6 bg-white messages-container"
+    >
+      {/* Loading indicator */}
+      {loading && messages.length > 0 && (
+        <div className="text-center py-4">
+          <span className="text-gray-500">Loading more messages...</span>
+        </div>
+      )}
+
+      {/* Observer target at the top */}
+      <div 
+        ref={observerRef} 
+        className="h-8 -mt-4"
+        style={{ visibility: hasMore ? 'visible' : 'hidden' }}
+      />
+
       <div className="space-y-1">
         {messages.map((message) => {
-          const { username, avatarUrl, content, timestamp, isChannelMessage } = getMessageDisplay(message)
+          const { 
+            username, 
+            avatarUrl, 
+            content, 
+            timestamp, 
+            isChannelMessage,
+            fileUrl,
+            fileName 
+          } = getMessageDisplay(message)
+          
           const userId = isChannelMessage 
             ? (message as Message).user_id 
             : (message as DirectMessage).sender_id
-          
+
           return (
             <div 
               key={message.id} 
@@ -132,9 +257,11 @@ export default function MessageList({ messages }: MessageListProps) {
                     {formatTimestamp(timestamp)}
                   </span>
                 </div>
-                <p className="mt-1 text-gray-900 whitespace-pre-wrap break-words">
-                  {content}
-                </p>
+                <MessageContent 
+                  content={content}
+                  fileUrl={fileUrl}
+                  fileName={fileName}
+                />
                 {currentUserId && (
                   <MessageReactions
                     messageId={message.id}
@@ -150,6 +277,7 @@ export default function MessageList({ messages }: MessageListProps) {
           )
         })}
       </div>
+      <div ref={messagesEndRef} />
     </div>
   )
 } 

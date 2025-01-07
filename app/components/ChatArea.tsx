@@ -1,19 +1,22 @@
 'use client'
 
-import { Hash, MessageSquare } from 'lucide-react'
+import { Hash, MessageSquare, Search } from 'lucide-react'
 import type { Channel, Message, Conversation, DirectMessage } from '@/app/types'
 import MessageList from './MessageList'
 import MessageInput from './MessageInput'
 import UserAvatar from './UserAvatar'
+import SearchMessages from './SearchMessages'
 
 interface ChatAreaProps {
   currentChannel: Channel | null
   currentConversation: Conversation | null
   messages: (Message | DirectMessage)[]
-  onSendMessage: (e: React.FormEvent) => Promise<void>
+  onSendMessage: (e: React.FormEvent, fileInfo?: { url: string, name: string }) => Promise<void>
   newMessage: string
   setNewMessage: (message: string) => void
-  handleKeyPress: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  hasMore: boolean
+  loadMore: () => void
+  loading: boolean
 }
 
 export default function ChatArea({
@@ -23,8 +26,30 @@ export default function ChatArea({
   onSendMessage,
   newMessage,
   setNewMessage,
-  handleKeyPress
+  hasMore,
+  loadMore,
+  loading
 }: ChatAreaProps) {
+  const handleSubmit = async (e: React.FormEvent, fileInfo?: { url: string, name: string }) => {
+    e.preventDefault()
+    if (!newMessage.trim() && !fileInfo) return
+
+    try {
+      await onSendMessage(e, fileInfo)
+      setNewMessage('')
+      
+      // Scroll to bottom after sending
+      const messagesDiv = document.querySelector('.messages-container')
+      if (messagesDiv) {
+        setTimeout(() => {
+          messagesDiv.scrollTop = messagesDiv.scrollHeight
+        }, 100)
+      }
+    } catch (error) {
+      console.error('Error sending message:', error)
+    }
+  }
+
   const getHeaderContent = () => {
     if (currentChannel) {
       return (
@@ -59,19 +84,40 @@ export default function ChatArea({
 
   return (
     <div className="flex-1 flex flex-col">
-      <div className="h-16 flex items-center px-6 border-b border-gray-200 bg-white">
+      <div className="h-16 flex items-center justify-between px-6 border-b border-gray-200 bg-white">
         <div className="flex items-center">
           {getHeaderContent()}
         </div>
+        <SearchMessages 
+          channelId={currentChannel?.id} 
+          conversationId={currentConversation?.id} 
+        />
       </div>
 
-      <MessageList messages={messages} />
+      <MessageList 
+        messages={messages} 
+        hasMore={hasMore}
+        loadMore={loadMore}
+        loading={loading}
+      />
 
       <MessageInput
-        onSubmit={onSendMessage}
+        onSubmit={handleSubmit}
         value={newMessage}
         onChange={setNewMessage}
-        onKeyPress={handleKeyPress}
+        onKeyPress={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            const form = e.currentTarget.form
+            if (form) {
+              // Find and click the submit button
+              const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement
+              if (submitButton && !submitButton.disabled) {
+                submitButton.click()
+              }
+            }
+          }
+        }}
       />
     </div>
   )

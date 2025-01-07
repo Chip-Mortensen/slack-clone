@@ -5,24 +5,23 @@ import type { Channel } from '@/app/types'
 export function useChannels() {
   const { supabase } = useSupabase()
   const [channels, setChannels] = useState<Channel[]>([])
-  const [loading, setLoading] = useState(true)
   const [currentChannel, setCurrentChannel] = useState<Channel | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  // Initial fetch of channels
   useEffect(() => {
     async function fetchChannels() {
       try {
-        const { data: channelsData, error } = await supabase
+        const { data, error } = await supabase
           .from('channels')
           .select('*')
           .order('created_at', { ascending: true })
 
         if (error) throw error
-        setChannels(channelsData)
+        setChannels(data || [])
         
-        // Set initial channel
-        if (channelsData.length > 0) {
-          setCurrentChannel(channelsData[0])
+        // Set first channel as default if no channel is selected
+        if (data && data.length > 0 && !currentChannel) {
+          setCurrentChannel(data[0])
         }
       } catch (error) {
         console.error('Error fetching channels:', error)
@@ -33,9 +32,9 @@ export function useChannels() {
 
     fetchChannels()
 
-    // Real-time subscription for channels
-    const channel = supabase
-      .channel('public:channels')
+    // Subscribe to channel changes
+    const channelsChannel = supabase
+      .channel('channels')
       .on(
         'postgres_changes',
         {
@@ -43,70 +42,41 @@ export function useChannels() {
           schema: 'public',
           table: 'channels'
         },
-        async (payload) => {
-          console.log('Channel change received:', payload)
-
-          if (payload.eventType === 'INSERT') {
-            setChannels(prev => {
-              if (prev.some(ch => ch.id === payload.new.id)) {
-                return prev
-              }
-              return [...prev, payload.new as Channel]
-            })
-          }
-          
+        (payload) => {
           if (payload.eventType === 'DELETE') {
-            setChannels(prev => prev.filter(ch => ch.id !== payload.old.id))
+            // Handle channel deletion
+            setChannels(prev => prev.filter(channel => channel.id !== payload.old.id))
+            // If the deleted channel is currently selected, clear it
             if (currentChannel?.id === payload.old.id) {
-              const firstChannel = channels.find(ch => ch.id !== payload.old.id)
-              setCurrentChannel(firstChannel || null)
+              setCurrentChannel(null)
             }
-          }
-
-          if (payload.eventType === 'UPDATE') {
-            setChannels(prev => 
-              prev.map(ch => 
-                ch.id === payload.new.id ? { ...ch, ...payload.new } : ch
-              )
-            )
-            if (currentChannel?.id === payload.new.id) {
-              setCurrentChannel(prev => prev ? { ...prev, ...payload.new } : null)
-            }
+          } else if (payload.eventType === 'INSERT') {
+            // Handle new channel
+            const newChannel = payload.new as Channel
+            setChannels(prev => [...prev, newChannel])
           }
         }
       )
       .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
+      supabase.removeChannel(channelsChannel)
     }
-  }, [supabase])
+  }, [supabase, currentChannel])
 
-  const createChannel = async (channelName: string, userId: string) => {
+  const createChannel = async (name: string, userId: string) => {
     try {
-      const { data: newChannel, error } = await supabase
+      const { data, error } = await supabase
         .from('channels')
-        .insert({ 
-          name: channelName.toLowerCase().trim(),
+        .insert({
+          name,
           created_by: userId
         })
-        .select('*')
+        .select()
         .single()
 
-      if (error) {
-        if (error.code === '23505') {
-          throw new Error('A channel with this name already exists')
-        }
-        throw new Error(error.message || 'Failed to create channel')
-      }
-
-      if (!newChannel) {
-        throw new Error('Failed to create channel')
-      }
-
-      setChannels(prev => [...prev, newChannel])
-      setCurrentChannel(newChannel)
-      return newChannel
+      if (error) throw error
+      return data
     } catch (error) {
       console.error('Error creating channel:', error)
       throw error

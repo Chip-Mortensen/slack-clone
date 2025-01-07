@@ -21,7 +21,7 @@ export default function Dashboard() {
   const router = useRouter()
   const { supabase } = useSupabase()
   const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [signOutLoading, setSignOutLoading] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [newMessage, setNewMessage] = useState('')
@@ -49,7 +49,9 @@ export default function Dashboard() {
   const {
     messages: channelMessages,
     loading: channelMessagesLoading,
-    sendMessage: sendChannelMessage
+    sendMessage: sendChannelMessage,
+    hasMore: channelHasMore,
+    loadMore: loadMoreChannelMessages
   } = useMessages(currentChannel?.id ?? null)
 
   // Direct message related hooks
@@ -65,7 +67,9 @@ export default function Dashboard() {
   const {
     messages: directMessages,
     loading: directMessagesLoading,
-    sendMessage: sendDirectMessage
+    sendMessage: sendDirectMessage,
+    hasMore: directHasMore,
+    loadMore: loadMoreDirectMessages
   } = useDirectMessageChat(currentConversation)
 
   // Clear the other type of chat when one is selected
@@ -93,7 +97,7 @@ export default function Dashboard() {
         console.error('Error:', error)
         router.push('/login')
       } finally {
-        setLoading(false)
+        setInitialLoading(false)
       }
     }
 
@@ -128,15 +132,25 @@ export default function Dashboard() {
     }
   }
 
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent, fileInfo?: { url: string, name: string }) => {
     e.preventDefault()
-    if (!user || !newMessage.trim()) return
+    if (!user || (!newMessage.trim() && !fileInfo)) return
 
     try {
       if (currentChannel) {
-        await sendChannelMessage(newMessage, user.id)
+        await sendChannelMessage(
+          newMessage,
+          user.id,
+          fileInfo?.url,
+          fileInfo?.name
+        )
       } else if (currentConversation) {
-        await sendDirectMessage(newMessage, user.id)
+        await sendDirectMessage(
+          newMessage,
+          user.id,
+          fileInfo?.url,
+          fileInfo?.name
+        )
       }
       
       setNewMessage('')
@@ -187,7 +201,6 @@ export default function Dashboard() {
   }
 
   const handleConfirmDelete = async () => {
-    console.log('handleConfirmDelete called', { deleteTarget })
     if (!deleteTarget) return
 
     try {
@@ -198,30 +211,19 @@ export default function Dashboard() {
       }
 
       if (deleteTarget.type === 'channel') {
-        console.log('Deleting channel:', {
-          channelId: deleteTarget.item.id,
-          userId: currentUser.id,
-          channel: deleteTarget.item,
-          isOwner: deleteTarget.item.created_by === currentUser.id
-        })
-
         // First check if user owns the channel
         if (deleteTarget.item.created_by !== currentUser.id) {
           console.error('Cannot delete channel: User is not the owner')
-          // Optionally show an error message to the user
           return
         }
 
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('channels')
           .delete()
           .eq('id', deleteTarget.item.id)
-          .select()
-
-        console.log('Channel delete response:', { data, error })
 
         if (error) {
-          console.error('Channel delete error:', error)
+          console.error('Channel delete error:', error.message)
           throw error
         }
 
@@ -262,8 +264,8 @@ export default function Dashboard() {
         )
       }
       setDeleteTarget(null)
-    } catch (error) {
-      console.error('Error in handleConfirmDelete:', error)
+    } catch (error: any) {
+      console.error('Error in handleConfirmDelete:', error.message || error)
     }
   }
 
@@ -283,7 +285,7 @@ export default function Dashboard() {
     setProfile(data)
   }
 
-  if (loading || channelsLoading || conversationsLoading) {
+  if (initialLoading || channelsLoading || conversationsLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-lg">Loading...</div>
@@ -294,6 +296,9 @@ export default function Dashboard() {
   if (!user) return null
 
   const currentMessages = currentChannel ? channelMessages : directMessages
+  const hasMore = currentChannel ? channelHasMore : directHasMore
+  const loadMore = currentChannel ? loadMoreChannelMessages : loadMoreDirectMessages
+  const messagesLoading = currentChannel ? channelMessagesLoading : directMessagesLoading
 
   return (
     <div className="flex h-screen">
@@ -331,7 +336,9 @@ export default function Dashboard() {
         onSendMessage={handleSendMessage}
         newMessage={newMessage}
         setNewMessage={setNewMessage}
-        handleKeyPress={handleKeyPress}
+        hasMore={hasMore}
+        loadMore={loadMore}
+        loading={messagesLoading}
       />
 
       <CreateChannelModal

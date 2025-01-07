@@ -6,52 +6,78 @@ export function useMessages(channelId: string | null) {
   const { supabase } = useSupabase()
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
-  const messageIds = messages.map(m => m.id).join(',')  // Memoize message IDs
+  const [hasMore, setHasMore] = useState(true)
+  const PAGE_SIZE = 20
 
-  useEffect(() => {
-    if (!channelId) {
-      setMessages([])
-      setLoading(false)
-      return
-    }
+  // Function to fetch messages
+  const fetchMessages = async (lastTimestamp?: string) => {
+    if (!channelId) return
 
-    async function fetchMessages() {
-      try {
-        const { data, error } = await supabase
-          .from('messages')
-          .select(`
+    try {
+      let query = supabase
+        .from('messages')
+        .select(`
+          *,
+          profiles (
             id,
-            content,
-            created_at,
+            username,
+            avatar_url
+          ),
+          reactions:message_reactions (
+            id,
+            emoji,
             user_id,
-            channel_id,
-            profiles (
-              id,
-              username,
-              avatar_url
-            ),
-            reactions:message_reactions (
-              id,
-              emoji,
-              user_id,
-              created_at
-            )
-          `)
-          .eq('channel_id', channelId)
+            created_at
+          )
+        `)
+        .eq('channel_id', channelId)
+
+      if (lastTimestamp) {
+        // For pagination, get older messages in ascending order
+        query = query
+          .lt('created_at', lastTimestamp)
           .order('created_at', { ascending: true })
-
-        if (error) throw error
-        setMessages(data || [])
-      } catch (error) {
-        console.error('Error fetching messages:', error)
-      } finally {
-        setLoading(false)
+          .limit(PAGE_SIZE)
+      } else {
+        // For initial load, get newest messages in descending order
+        query = query
+          .order('created_at', { ascending: false })
+          .limit(PAGE_SIZE)
       }
+
+      const { data, error } = await query
+
+      if (error) throw error
+
+      const newMessages = data || []
+      setHasMore(newMessages.length === PAGE_SIZE)
+      
+      if (lastTimestamp) {
+        // For pagination, add older messages to the beginning
+        setMessages(prev => [...newMessages, ...prev])
+      } else {
+        // For initial load, show newest messages at bottom
+        setMessages(newMessages.reverse())
+      }
+    } catch (error) {
+      console.error('Error fetching messages:', error)
+    } finally {
+      setLoading(false)
     }
+  }
 
+  // Initial load
+  useEffect(() => {
+    setLoading(true)
+    setMessages([])
+    setHasMore(true)
     fetchMessages()
+  }, [channelId])
 
-    // Subscribe to new messages and reactions
+  // Set up real-time subscription for new messages and reactions
+  useEffect(() => {
+    if (!channelId) return
+
     const messagesChannel = supabase
       .channel(`messages:${channelId}`)
       .on(
@@ -62,9 +88,30 @@ export function useMessages(channelId: string | null) {
           table: 'messages',
           filter: `channel_id=eq.${channelId}`
         },
-        (payload) => {
-          const newMessage = payload.new as Message
-          setMessages(prev => [...prev, newMessage])
+        async (payload) => {
+          // Fetch the complete message data including profile and reactions
+          const { data, error } = await supabase
+            .from('messages')
+            .select(`
+              *,
+              profiles (
+                id,
+                username,
+                avatar_url
+              ),
+              reactions:message_reactions (
+                id,
+                emoji,
+                user_id,
+                created_at
+              )
+            `)
+            .eq('id', payload.new.id)
+            .single()
+
+          if (!error && data) {
+            setMessages(prev => [...prev, data])
+          }
         }
       )
       .on(
@@ -74,15 +121,31 @@ export function useMessages(channelId: string | null) {
           schema: 'public',
           table: 'message_reactions'
         },
-        async (payload) => {
-          console.log('Reaction change detected:', {
-            event: payload.eventType,
-            new: payload.new,
-            old: payload.old
-          })
-          
-          // Always refetch messages on any reaction change
-          fetchMessages()
+        async () => {
+          // Refetch all messages to get updated reactions
+          const { data, error } = await supabase
+            .from('messages')
+            .select(`
+              *,
+              profiles (
+                id,
+                username,
+                avatar_url
+              ),
+              reactions:message_reactions (
+                id,
+                emoji,
+                user_id,
+                created_at
+              )
+            `)
+            .eq('channel_id', channelId)
+            .order('created_at', { ascending: false })
+            .limit(PAGE_SIZE)
+
+          if (!error && data) {
+            setMessages(data.reverse())
+          }
         }
       )
       .subscribe()
@@ -90,22 +153,27 @@ export function useMessages(channelId: string | null) {
     return () => {
       supabase.removeChannel(messagesChannel)
     }
-  }, [channelId, supabase, messageIds]) // Use messageIds instead of messages
+  }, [channelId, supabase])
 
-  const sendMessage = async (content: string, userId: string) => {
+  const sendMessage = async (
+    content: string, 
+    userId: string,
+    fileUrl?: string,
+    fileName?: string
+  ) => {
     if (!channelId) return
 
-    try {
-      const { error } = await supabase
-        .from('messages')
-        .insert({
-          content,
-          channel_id: channelId,
-          user_id: userId
-        })
+    const { error } = await supabase
+      .from('messages')
+      .insert({
+        content,
+        user_id: userId,
+        channel_id: channelId,
+        file_url: fileUrl,
+        file_name: fileName
+      })
 
-      if (error) throw error
-    } catch (error) {
+    if (error) {
       console.error('Error sending message:', error)
       throw error
     }
@@ -114,6 +182,17 @@ export function useMessages(channelId: string | null) {
   return {
     messages,
     loading,
+    hasMore,
+    loadMore: () => {
+      console.log('loadMore called with:', {
+        messagesCount: messages.length,
+        oldestMessage: messages[0]
+      })
+      if (messages.length > 0) {
+        const oldestMessage = messages[0]
+        fetchMessages(oldestMessage.created_at)
+      }
+    },
     sendMessage
   }
 } 

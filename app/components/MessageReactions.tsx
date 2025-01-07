@@ -31,9 +31,11 @@ export default function MessageReactions({
   onRemoveReaction
 }: MessageReactionsProps) {
   const [showPicker, setShowPicker] = useState(false)
+  const [pickerPosition, setPickerPosition] = useState<'top' | 'bottom'>('bottom')
   const containerRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
+  // Close picker when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -44,6 +46,18 @@ export default function MessageReactions({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Calculate picker position
+  useEffect(() => {
+    if (showPicker && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      const viewportHeight = window.innerHeight
+      const spaceBelow = viewportHeight - rect.bottom
+      
+      // If there's less than 400px below, show picker on top
+      setPickerPosition(spaceBelow < 400 ? 'top' : 'bottom')
+    }
+  }, [showPicker])
 
   // Group reactions by emoji
   const groupedReactions = reactions.reduce((acc, reaction) => {
@@ -64,6 +78,14 @@ export default function MessageReactions({
 
   const handleEmojiSelect = async (emojiData: EmojiClickData) => {
     setShowPicker(false)
+    
+    // Check if user already has any reaction on this message
+    const existingReaction = reactions.find(r => r.user_id === currentUserId)
+    if (existingReaction) {
+      // Remove existing reaction before adding new one
+      await onRemoveReaction(existingReaction.id)
+    }
+    
     await onAddReaction(emojiData.emoji)
   }
 
@@ -76,13 +98,9 @@ export default function MessageReactions({
             if (data.userReactionId) {
               await onRemoveReaction(data.userReactionId)
             } else {
-              // Find if user already has a reaction on this message
-              const existingReaction = Object.values(groupedReactions).find(group => 
-                group.reactions.some(r => r.user_id === currentUserId)
-              )?.reactions.find(r => r.user_id === currentUserId)
-
+              // Remove any existing reaction from this user before adding new one
+              const existingReaction = reactions.find(r => r.user_id === currentUserId)
               if (existingReaction) {
-                // Remove the old reaction before adding the new one
                 await onRemoveReaction(existingReaction.id)
               }
               await onAddReaction(emoji)
@@ -118,9 +136,11 @@ export default function MessageReactions({
           <div 
             className="fixed z-50"
             style={{
-              top: buttonRef.current 
+              top: buttonRef.current && pickerPosition === 'bottom'
                 ? buttonRef.current.getBoundingClientRect().bottom + 8 
-                : 0,
+                : buttonRef.current
+                  ? buttonRef.current.getBoundingClientRect().top - 408 // 400px height + 8px margin
+                  : 0,
               left: buttonRef.current 
                 ? buttonRef.current.getBoundingClientRect().left 
                 : 0,

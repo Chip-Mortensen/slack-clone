@@ -21,6 +21,8 @@ export interface Message {
   channel_id: string | number
   profiles: Profile
   reactions?: Reaction[]
+  file_url?: string
+  file_name?: string
 }
 
 export interface DirectMessage {
@@ -32,6 +34,8 @@ export interface DirectMessage {
   conversation_id: number
   sender: Profile
   reactions?: Reaction[]
+  file_url?: string
+  file_name?: string
 }
 
 export type UserStatus = {

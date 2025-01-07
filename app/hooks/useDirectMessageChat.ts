@@ -26,6 +26,8 @@ export function useDirectMessageChat(conversation: Conversation | null) {
             sender_id,
             receiver_id,
             conversation_id,
+            file_url,
+            file_name,
             sender:profiles!direct_messages_sender_id_fkey (
               id,
               username,
@@ -93,61 +95,26 @@ export function useDirectMessageChat(conversation: Conversation | null) {
     }
   }, [conversation, supabase, messageIds]) // Use messageIds instead of messages
 
-  const sendMessage = async (content: string, userId: string) => {
+  const sendMessage = async (
+    message: string, 
+    senderId: string,
+    fileUrl?: string,
+    fileName?: string
+  ) => {
     if (!conversation) return
 
-    // Create optimistic message
-    const optimisticMessage: DirectMessage = {
-      id: -Date.now(), // Temporary negative ID
-      message: content,
-      created_at: new Date().toISOString(),
-      sender_id: userId,
-      receiver_id: conversation.other_user.id,
-      conversation_id: conversation.id,
-      sender: {
-        id: userId,
-        username: 'Sending...', // Will be updated with real data
-        avatar_url: null
-      }
-    }
+    const { error } = await supabase
+      .from('direct_messages')
+      .insert({
+        message,
+        sender_id: senderId,
+        receiver_id: conversation.other_user.id,
+        conversation_id: conversation.id,
+        file_url: fileUrl,
+        file_name: fileName
+      })
 
-    // Add optimistic message
-    setMessages(prev => [...prev, optimisticMessage])
-
-    try {
-      const { error, data } = await supabase
-        .from('direct_messages')
-        .insert({
-          message: content,
-          sender_id: userId,
-          receiver_id: conversation.other_user.id,
-          conversation_id: conversation.id
-        })
-        .select(`
-          *,
-          sender:profiles!direct_messages_sender_id_fkey (
-            id,
-            username,
-            avatar_url
-          )
-        `)
-        .single()
-
-      if (error) {
-        // Remove optimistic message on error
-        setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id))
-        throw error
-      }
-
-      if (data) {
-        // Replace optimistic message with real one
-        setMessages(prev => 
-          prev.map(msg => 
-            msg.id === optimisticMessage.id ? data : msg
-          )
-        )
-      }
-    } catch (error) {
+    if (error) {
       console.error('Error sending direct message:', error)
       throw error
     }
