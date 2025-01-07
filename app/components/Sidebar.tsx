@@ -4,6 +4,7 @@ import { Hash, LogOut, User as UserIcon, Plus, MessageSquare, Trash2 } from 'luc
 import { useRouter } from 'next/navigation'
 import type { Channel, Conversation, Profile } from '@/app/types'
 import type { User } from '@supabase/auth-helpers-nextjs'
+import UserAvatar from './UserAvatar'
 
 interface SidebarProps {
   user: User
@@ -54,8 +55,7 @@ export default function Sidebar({
       <div className="flex flex-col h-full">
         {/* Workspace Header */}
         <div className="p-4 border-b border-gray-800">
-          <h1 className="text-xl font-bold">Workspace</h1>
-          <p className="text-sm text-gray-400">{user.email}</p>
+          <h1 className="text-xl font-bold">Slack</h1>
         </div>
 
         {/* Channels Section */}
@@ -135,16 +135,14 @@ export default function Sidebar({
                   onClick={() => onConversationSelect(conversation)}
                   className="flex items-center flex-1 px-2 py-1 text-gray-300"
                 >
-                  <MessageSquare size={18} className="mr-2" />
                   <div className="flex items-center">
-                    {conversation.other_user.avatar_url && (
-                      <img
-                        src={conversation.other_user.avatar_url}
-                        alt=""
-                        className="w-6 h-6 rounded-lg mr-2 object-cover"
-                      />
-                    )}
-                    <span>{conversation.other_user.username}</span>
+                    <UserAvatar
+                      userId={conversation.other_user.id}
+                      avatarUrl={conversation.other_user.avatar_url}
+                      username={conversation.other_user.username}
+                      size="sm"
+                    />
+                    <span className="ml-2">{conversation.other_user.username}</span>
                   </div>
                 </button>
                 <button
@@ -162,18 +160,33 @@ export default function Sidebar({
         </div>
 
         {/* User Section */}
-        <div className="p-4 border-t border-gray-800 space-y-2">
+        <div className="p-4 border-t border-gray-800">
           <button
             onClick={onEditProfile}
-            className="flex items-center w-full px-2 py-1 text-gray-300 hover:bg-gray-800 rounded"
+            className="w-full flex items-center p-2 text-gray-300 hover:bg-gray-800 rounded transition-colors"
           >
-            <UserIcon size={18} className="mr-2" />
-            Edit Profile
+            <div className="flex items-center flex-1 min-w-0">
+              <UserAvatar
+                userId={user.id}
+                avatarUrl={profile?.avatar_url || null}
+                username={profile?.username || user.email || ''}
+                size="md"
+              />
+              <div className="ml-2 text-left flex-1 min-w-0">
+                <div className="text-sm font-medium text-gray-300 truncate">
+                  {profile?.username || 'Loading...'}
+                </div>
+                <div className="text-xs text-gray-500 truncate">
+                  {user.email}
+                </div>
+              </div>
+            </div>
           </button>
+
           <button
             onClick={onSignOut}
             disabled={signOutLoading}
-            className="flex items-center w-full px-2 py-1 text-gray-300 hover:bg-gray-800 rounded disabled:opacity-50"
+            className="flex items-center w-full px-2 py-1 mt-2 text-gray-300 hover:bg-gray-800 rounded disabled:opacity-50"
           >
             <LogOut size={18} className="mr-2" />
             {signOutLoading ? 'Signing out...' : 'Sign Out'}

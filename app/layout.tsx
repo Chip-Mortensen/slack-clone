@@ -1,6 +1,7 @@
 import './globals.css'
 import { Inter } from 'next/font/google'
 import SupabaseProvider from './supabase-provider'
+import { UserStatusProvider } from './contexts/UserStatusContext'
 
 const inter = Inter({ 
   subsets: ['latin'],
@@ -21,9 +22,11 @@ export default function RootLayout({
     <html lang="en" className={inter.className}>
       <body>
         <SupabaseProvider>
-          <main className="min-h-screen bg-gray-100">
-            {children}
-          </main>
+          <UserStatusProvider>
+            <main className="min-h-screen bg-gray-100">
+              {children}
+            </main>
+          </UserStatusProvider>
         </SupabaseProvider>
       </body>
     </html>

@@ -37,7 +37,7 @@ export default function MessageInput({
 
   return (
     <form onSubmit={onSubmit} className="p-4 bg-white border-t border-gray-200">
-      <div className="flex items-end space-x-2">
+      <div className="flex items-start space-x-2">
         <div className="flex-1 relative">
           <textarea
             ref={textareaRef}
@@ -45,7 +45,7 @@ export default function MessageInput({
             onChange={(e) => onChange(e.target.value)}
             onKeyPress={onKeyPress}
             placeholder="Type a message..."
-            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none min-h-[40px] max-h-[120px]"
             rows={1}
           />
           <div className="absolute bottom-2 right-2">
@@ -54,7 +54,7 @@ export default function MessageInput({
         </div>
         <button
           type="submit"
-          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+          className="px-4 py-2 h-[42px] bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 flex-shrink-0"
           disabled={!value.trim()}
         >
           Send

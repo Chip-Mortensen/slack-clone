@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import { useSupabase } from '../supabase-provider'
 import type { Profile } from '@/app/types'
+import UserAvatar from './UserAvatar'
 
 interface StartConversationModalProps {
   isOpen: boolean
@@ -102,16 +103,13 @@ export default function StartConversationModal({
                 onClick={() => handleSelectUser(user.id)}
                 className="flex items-center w-full p-2 hover:bg-gray-100 rounded-md"
               >
-                <div className="w-10 h-10 rounded-full bg-gray-200 flex-shrink-0">
-                  {user.avatar_url && (
-                    <img
-                      src={user.avatar_url}
-                      alt=""
-                      className="w-10 h-10 rounded-full object-cover"
-                    />
-                  )}
-                </div>
-                <span className="ml-3 font-medium">{user.username}</span>
+                <UserAvatar
+                  userId={user.id}
+                  avatarUrl={user.avatar_url}
+                  username={user.username}
+                  size="md"
+                />
+                <span className="ml-2">{user.username}</span>
               </button>
             ))
           ) : searchTerm.length >= 2 ? (

@@ -15,6 +15,7 @@ import { useDirectMessages } from '../hooks/useDirectMessages'
 import { useDirectMessageChat } from '../hooks/useDirectMessageChat'
 import ConfirmationModal from '../components/ConfirmationModal'
 import EditProfileModal from '../components/EditProfileModal'
+import { usePresence } from '../hooks/usePresence'
 
 export default function Dashboard() {
   const router = useRouter()
@@ -32,6 +33,9 @@ export default function Dashboard() {
   } | null>(null)
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
+
+  // Add usePresence here, it will only be active when user exists
+  usePresence(user?.id)
 
   // Channel related hooks
   const {

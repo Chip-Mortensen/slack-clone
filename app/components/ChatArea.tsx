@@ -4,6 +4,7 @@ import { Hash, MessageSquare } from 'lucide-react'
 import type { Channel, Message, Conversation, DirectMessage } from '@/app/types'
 import MessageList from './MessageList'
 import MessageInput from './MessageInput'
+import UserAvatar from './UserAvatar'
 
 interface ChatAreaProps {
   currentChannel: Channel | null
@@ -40,14 +41,13 @@ export default function ChatArea({
         <>
           <MessageSquare size={20} className="text-gray-400 mr-2" />
           <div className="flex items-center">
-            {currentConversation.other_user.avatar_url && (
-              <img
-                src={currentConversation.other_user.avatar_url}
-                alt=""
-                className="w-8 h-8 rounded-lg mr-2"
-              />
-            )}
-            <h2 className="text-lg font-medium">
+            <UserAvatar
+              userId={currentConversation.other_user.id}
+              avatarUrl={currentConversation.other_user.avatar_url}
+              username={currentConversation.other_user.username}
+              size="md"
+            />
+            <h2 className="text-lg font-medium ml-2">
               {currentConversation.other_user.username}
             </h2>
           </div>

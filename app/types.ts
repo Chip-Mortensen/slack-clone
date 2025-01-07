@@ -32,4 +32,12 @@ export interface DirectMessage {
   conversation_id: number
   sender: Profile
   reactions?: Reaction[]
+}
+
+export type UserStatus = {
+  id: string
+  user_id: string
+  status_type: 'in_meeting' | 'commuting'
+  expires_at: string
+  created_at: string
 } 

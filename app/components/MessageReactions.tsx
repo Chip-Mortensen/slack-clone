@@ -63,30 +63,9 @@ export default function MessageReactions({
   }, {} as Record<string, { count: number; userReactionId: string | number | null; reactions: Reaction[] }>)
 
   const handleEmojiSelect = async (emojiData: EmojiClickData) => {
-    console.log('Emoji selected:', emojiData)
     setShowPicker(false)
-
-    // Find if user already has a reaction on this message
-    const existingReaction = Object.values(groupedReactions).find(group => 
-      group.reactions.some(r => r.user_id === currentUserId)
-    )?.reactions.find(r => r.user_id === currentUserId)
-
-    if (existingReaction) {
-      // If user is selecting the same emoji, just remove it
-      if (existingReaction.emoji === emojiData.emoji) {
-        await onRemoveReaction(existingReaction.id)
-        return
-      }
-      
-      // Remove the old reaction before adding the new one
-      await onRemoveReaction(existingReaction.id)
-    }
-
-    // Add the new reaction
     await onAddReaction(emojiData.emoji)
   }
-
-  console.log('Picker state:', { showPicker, messageId, reactions })
 
   return (
     <div ref={containerRef} className="flex flex-wrap items-center gap-2 mt-2">

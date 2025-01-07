@@ -2,6 +2,7 @@
 
 import type { Message, DirectMessage } from '@/app/types'
 import MessageReactions from './MessageReactions'
+import UserAvatar from './UserAvatar'
 import { useSupabase } from '../supabase-provider'
 import { useEffect, useState } from 'react'
 
@@ -26,24 +27,24 @@ export default function MessageList({ messages }: MessageListProps) {
   const getMessageDisplay = (message: Message | DirectMessage) => {
     const isChannelMessage = 'profiles' in message
     
-    const username = isChannelMessage 
-      ? message.profiles.username 
-      : message.sender.username
+    // For channel messages
+    if (isChannelMessage) {
+      return {
+        username: message.profiles.username,
+        avatarUrl: message.profiles.avatar_url,
+        content: message.content,
+        timestamp: new Date(message.created_at),
+        isChannelMessage: true
+      }
+    }
     
-    const avatarUrl = isChannelMessage 
-      ? message.profiles.avatar_url 
-      : message.sender.avatar_url
-    
-    const content = isChannelMessage 
-      ? message.content 
-      : message.message
-
+    // For direct messages
     return {
-      username,
-      avatarUrl,
-      content,
+      username: message.sender?.username || 'Unknown User',
+      avatarUrl: message.sender?.avatar_url,
+      content: message.message,
       timestamp: new Date(message.created_at),
-      isChannelMessage
+      isChannelMessage: false
     }
   }
 
@@ -107,27 +108,21 @@ export default function MessageList({ messages }: MessageListProps) {
       <div className="space-y-1">
         {messages.map((message) => {
           const { username, avatarUrl, content, timestamp, isChannelMessage } = getMessageDisplay(message)
+          const userId = isChannelMessage 
+            ? (message as Message).user_id 
+            : (message as DirectMessage).sender_id
           
           return (
             <div 
               key={message.id} 
               className="flex items-start space-x-4 p-2 rounded-lg hover:bg-gray-50 transition-colors duration-150"
             >
-              <div className="flex-shrink-0">
-                <div className="w-12 h-12 rounded-lg bg-gray-200 overflow-hidden">
-                  {avatarUrl && (
-                    <img
-                      src={avatarUrl}
-                      alt={username}
-                      className="w-12 h-12 object-cover"
-                      onError={(e) => {
-                        console.error('Error loading image:', e)
-                        e.currentTarget.src = ''
-                      }}
-                    />
-                  )}
-                </div>
-              </div>
+              <UserAvatar
+                userId={userId}
+                avatarUrl={avatarUrl}
+                username={username}
+                size="lg"
+              />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center space-x-2">
                   <span className="font-bold text-gray-900">
