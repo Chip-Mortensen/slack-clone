@@ -5,7 +5,7 @@ import MessageReactions from './MessageReactions'
 import UserAvatar from './UserAvatar'
 import { useSupabase } from '../supabase-provider'
 import { useEffect, useState, useRef } from 'react'
-import { Paperclip } from 'lucide-react'
+import { Paperclip, MessageSquare } from 'lucide-react'
 import MessageContent from './MessageContent'
 
 interface MessageListProps {
@@ -13,9 +13,11 @@ interface MessageListProps {
   hasMore: boolean
   loadMore: () => void
   loading: boolean
+  onReplyClick?: (message: Message) => void
+  showThreads?: boolean
 }
 
-export default function MessageList({ messages, hasMore, loadMore, loading }: MessageListProps) {
+export default function MessageList({ messages, hasMore, loadMore, loading, onReplyClick, showThreads }: MessageListProps) {
   const { supabase } = useSupabase()
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -23,6 +25,7 @@ export default function MessageList({ messages, hasMore, loadMore, loading }: Me
   const [isInitialLoad, setIsInitialLoad] = useState(true)
   const containerRef = useRef<HTMLDivElement>(null)
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
+  const [replyCounts, setReplyCounts] = useState<Record<string, number>>({})
 
   const isNearBottom = () => {
     const container = containerRef.current
@@ -66,24 +69,9 @@ export default function MessageList({ messages, hasMore, loadMore, loading }: Me
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
-    console.log('Setting up observer with:', {
-      hasMore,
-      loading,
-      containerExists: !!containerRef.current,
-      targetExists: !!observerRef.current
-    })
-
     const observer = new IntersectionObserver(
       (entries) => {
-        console.log('Observer callback:', {
-          isIntersecting: entries[0].isIntersecting,
-          hasMore,
-          loading,
-          intersectionRatio: entries[0].intersectionRatio
-        })
-
         if (entries[0].isIntersecting && hasMore && !loading) {
-          console.log('Triggering loadMore')
           loadMore()
         }
       },
@@ -96,15 +84,11 @@ export default function MessageList({ messages, hasMore, loadMore, loading }: Me
 
     const target = observerRef.current
     if (target) {
-      console.log('Observing target element')
       observer.observe(target)
-    } else {
-      console.log('No target element found')
     }
 
     return () => {
       if (target) {
-        console.log('Cleaning up observer')
         observer.unobserve(target)
       }
     }
@@ -119,6 +103,90 @@ export default function MessageList({ messages, hasMore, loadMore, loading }: Me
     }
     getCurrentUser()
   }, [supabase])
+
+  // Add a new useEffect to fetch reply counts
+  useEffect(() => {
+    const fetchReplyCounts = async () => {
+      if (!showThreads) return;
+      
+      const messageIds = messages
+        .filter((m): m is Message => 'profiles' in m)
+        .map(m => m.id);
+
+      if (messageIds.length === 0) return;
+
+      const { data, error } = await supabase
+        .from('message_replies')
+        .select('message_id')
+        .in('message_id', messageIds);
+
+      if (error) {
+        console.error('Error fetching reply counts:', error);
+        return;
+      }
+
+      // Count replies for each message
+      const counts = data.reduce((acc: Record<string, number>, reply) => {
+        acc[reply.message_id] = (acc[reply.message_id] || 0) + 1;
+        return acc;
+      }, {});
+
+      setReplyCounts(counts);
+    };
+
+    fetchReplyCounts();
+  }, [messages, showThreads, supabase]);
+
+  // Add this useEffect after the reply counts useEffect
+  useEffect(() => {
+    if (!showThreads) return;
+
+    // Subscribe to reply changes
+    const channel = supabase
+      .channel('message_replies_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'message_replies'
+        },
+        () => {
+          // Refetch counts when replies change
+          const fetchReplyCounts = async () => {
+            const messageIds = messages
+              .filter((m): m is Message => 'profiles' in m)
+              .map(m => m.id);
+
+            if (messageIds.length === 0) return;
+
+            const { data, error } = await supabase
+              .from('message_replies')
+              .select('message_id')
+              .in('message_id', messageIds);
+
+            if (error) {
+              console.error('Error fetching reply counts:', error);
+              return;
+            }
+
+            const counts = data.reduce((acc: Record<string, number>, reply) => {
+              acc[reply.message_id] = (acc[reply.message_id] || 0) + 1;
+              return acc;
+            }, {});
+
+            setReplyCounts(counts);
+          };
+
+          fetchReplyCounts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [showThreads, messages, supabase]);
 
   const getMessageDisplay = (message: Message | DirectMessage) => {
     const isChannelMessage = 'profiles' in message
@@ -262,16 +330,29 @@ export default function MessageList({ messages, hasMore, loadMore, loading }: Me
                   fileUrl={fileUrl}
                   fileName={fileName}
                 />
-                {currentUserId && (
-                  <MessageReactions
-                    messageId={message.id}
-                    isDirectMessage={!isChannelMessage}
-                    reactions={message.reactions || []}
-                    currentUserId={currentUserId}
-                    onAddReaction={(emoji) => handleAddReaction(message.id, !isChannelMessage, emoji)}
-                    onRemoveReaction={handleRemoveReaction}
-                  />
-                )}
+                <div className="flex items-center gap-1">
+                  {currentUserId && (
+                    <MessageReactions
+                      messageId={message.id}
+                      isDirectMessage={!isChannelMessage}
+                      reactions={message.reactions || []}
+                      currentUserId={currentUserId}
+                      onAddReaction={(emoji) => handleAddReaction(message.id, !isChannelMessage, emoji)}
+                      onRemoveReaction={handleRemoveReaction}
+                    />
+                  )}
+                  {showThreads && isChannelMessage && (
+                    <button
+                      onClick={() => onReplyClick?.(message as Message)}
+                      className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 flex items-center gap-1"
+                    >
+                      <MessageSquare size={16} />
+                      {replyCounts[message.id] > 0 && (
+                        <span className="mr-1 text-xs">{replyCounts[message.id]} replies</span>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )

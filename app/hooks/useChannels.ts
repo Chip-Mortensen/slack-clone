@@ -18,11 +18,6 @@ export function useChannels() {
 
         if (error) throw error
         setChannels(data || [])
-        
-        // Set first channel as default if no channel is selected
-        if (data && data.length > 0 && !currentChannel) {
-          setCurrentChannel(data[0])
-        }
       } catch (error) {
         console.error('Error fetching channels:', error)
       } finally {
@@ -62,7 +57,7 @@ export function useChannels() {
     return () => {
       supabase.removeChannel(channelsChannel)
     }
-  }, [supabase, currentChannel])
+  }, [supabase])
 
   const createChannel = async (name: string, userId: string) => {
     try {

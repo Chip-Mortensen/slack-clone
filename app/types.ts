@@ -23,6 +23,7 @@ export interface Message {
   reactions?: Reaction[]
   file_url?: string
   file_name?: string
+  reply_count?: number;
 }
 
 export interface DirectMessage {
@@ -34,6 +35,17 @@ export interface DirectMessage {
   conversation_id: number
   sender: Profile
   reactions?: Reaction[]
+  file_url?: string
+  file_name?: string
+}
+
+export interface MessageReply {
+  id: string
+  message_id: string
+  content: string
+  user_id: string
+  created_at: string
+  profiles: Profile
   file_url?: string
   file_name?: string
 }

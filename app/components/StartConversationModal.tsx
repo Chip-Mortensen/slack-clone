@@ -9,13 +9,11 @@ import UserAvatar from './UserAvatar'
 interface StartConversationModalProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (userId: string) => Promise<void>
 }
 
 export default function StartConversationModal({
   isOpen,
   onClose,
-  onSubmit
 }: StartConversationModalProps) {
   const { supabase } = useSupabase()
   const [searchTerm, setSearchTerm] = useState('')
@@ -51,7 +49,22 @@ export default function StartConversationModal({
     try {
       setError(null)
       setLoading(true)
-      await onSubmit(userId)
+
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('No user found')
+
+      // Create conversation
+      const { data: conversation, error: convError } = await supabase
+        .from('conversations')
+        .insert({
+          user1_id: user.id,
+          user2_id: userId
+        })
+        .select()
+        .single()
+
+      if (convError) throw convError
+
       setSearchTerm('')
       setUsers([])
       onClose()

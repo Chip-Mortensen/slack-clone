@@ -6,6 +6,8 @@ import MessageList from './MessageList'
 import MessageInput from './MessageInput'
 import UserAvatar from './UserAvatar'
 import SearchMessages from './SearchMessages'
+import ThreadSidebar from './ThreadSidebar'
+import { useState } from 'react'
 
 interface ChatAreaProps {
   currentChannel: Channel | null
@@ -30,6 +32,8 @@ export default function ChatArea({
   loadMore,
   loading
 }: ChatAreaProps) {
+  const [threadMessage, setThreadMessage] = useState<Message | null>(null)
+
   const handleSubmit = async (e: React.FormEvent, fileInfo?: { url: string, name: string }) => {
     e.preventDefault()
     if (!newMessage.trim() && !fileInfo) return
@@ -83,42 +87,53 @@ export default function ChatArea({
   }
 
   return (
-    <div className="flex-1 flex flex-col">
-      <div className="h-16 flex items-center justify-between px-6 border-b border-gray-200 bg-white">
-        <div className="flex items-center">
-          {getHeaderContent()}
+    <div className="flex-1 flex">
+      <div className="flex-1 flex flex-col">
+        <div className="h-16 flex items-center justify-between px-6 border-b border-gray-200 bg-white">
+          <div className="flex items-center">
+            {getHeaderContent()}
+          </div>
+          <SearchMessages 
+            channelId={currentChannel?.id} 
+            conversationId={currentConversation?.id} 
+          />
         </div>
-        <SearchMessages 
-          channelId={currentChannel?.id} 
-          conversationId={currentConversation?.id} 
+
+        <MessageList 
+          messages={messages}
+          hasMore={hasMore}
+          loadMore={loadMore}
+          loading={loading}
+          showThreads={!!currentChannel}
+          onReplyClick={setThreadMessage}
+        />
+
+        <MessageInput
+          onSubmit={handleSubmit}
+          value={newMessage}
+          onChange={setNewMessage}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              const form = e.currentTarget.form
+              if (form) {
+                // Find and click the submit button
+                const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement
+                if (submitButton && !submitButton.disabled) {
+                  submitButton.click()
+                }
+              }
+            }
+          }}
         />
       </div>
 
-      <MessageList 
-        messages={messages} 
-        hasMore={hasMore}
-        loadMore={loadMore}
-        loading={loading}
-      />
-
-      <MessageInput
-        onSubmit={handleSubmit}
-        value={newMessage}
-        onChange={setNewMessage}
-        onKeyPress={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault()
-            const form = e.currentTarget.form
-            if (form) {
-              // Find and click the submit button
-              const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement
-              if (submitButton && !submitButton.disabled) {
-                submitButton.click()
-              }
-            }
-          }
-        }}
-      />
+      {threadMessage && (
+        <ThreadSidebar
+          parentMessage={threadMessage}
+          onClose={() => setThreadMessage(null)}
+        />
+      )}
     </div>
   )
 } 

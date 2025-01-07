@@ -184,10 +184,6 @@ export function useMessages(channelId: string | null) {
     loading,
     hasMore,
     loadMore: () => {
-      console.log('loadMore called with:', {
-        messagesCount: messages.length,
-        oldestMessage: messages[0]
-      })
       if (messages.length > 0) {
         const oldestMessage = messages[0]
         fetchMessages(oldestMessage.created_at)

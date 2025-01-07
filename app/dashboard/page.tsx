@@ -125,6 +125,25 @@ export default function Dashboard() {
     getProfile()
   }, [user, supabase])
 
+  useEffect(() => {
+    if (channels.length > 0 && !currentChannel && !currentConversation && !localStorage.getItem('lastView')) {
+      setCurrentChannel(channels[0])
+      localStorage.setItem('lastView', 'channel')
+    }
+  }, [channels, currentChannel, currentConversation])
+
+  useEffect(() => {
+    if (currentChannel) {
+      localStorage.setItem('lastView', 'channel')
+    }
+  }, [currentChannel])
+
+  useEffect(() => {
+    if (currentConversation) {
+      localStorage.setItem('lastView', 'conversation')
+    }
+  }, [currentConversation])
+
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -350,7 +369,6 @@ export default function Dashboard() {
       <StartConversationModal
         isOpen={isStartConversationModalOpen}
         onClose={() => setIsStartConversationModalOpen(false)}
-        onSubmit={handleStartConversation}
       />
 
       <ConfirmationModal

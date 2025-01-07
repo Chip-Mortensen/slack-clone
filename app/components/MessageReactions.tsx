@@ -90,7 +90,7 @@ export default function MessageReactions({
   }
 
   return (
-    <div ref={containerRef} className="flex flex-wrap items-center gap-2 mt-2">
+    <div ref={containerRef} className="flex flex-wrap items-center gap-2 mt-1">
       {Object.entries(groupedReactions).map(([emoji, data]) => (
         <button
           key={emoji}
