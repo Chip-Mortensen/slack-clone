@@ -33,11 +33,32 @@ export default function ChatArea({
   loading
 }: ChatAreaProps) {
   const [parentMessage, setParentMessage] = useState<Message | null>(null)
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | number | null>(null)
 
   // Close thread when channel or conversation changes
   useEffect(() => {
     setParentMessage(null)
+    setHighlightedMessageId(null) // Reset highlighted message when changing channels
   }, [currentChannel?.id, currentConversation?.id])
+
+  const handleMessageSelect = async (messageId: string | number) => {
+    // First ensure we have loaded enough messages
+    const messageExists = messages.some(m => m.id === messageId)
+    
+    if (!messageExists && hasMore && !loading) {
+      try {
+        // Load one batch of messages
+        await loadMore()
+        // Wait a bit for the messages to render
+        await new Promise(resolve => setTimeout(resolve, 200))
+      } catch (error) {
+        console.error('Error loading more messages:', error)
+      }
+    }
+
+    // Set the highlighted message ID which will trigger the scroll
+    setHighlightedMessageId(messageId)
+  }
 
   const handleSubmit = async (e: React.FormEvent, fileInfo?: { url: string, name: string }) => {
     e.preventDefault()
@@ -100,7 +121,8 @@ export default function ChatArea({
           </div>
           <SearchMessages 
             channelId={currentChannel?.id} 
-            conversationId={currentConversation?.id} 
+            conversationId={currentConversation?.id}
+            onMessageSelect={handleMessageSelect}
           />
         </div>
 
@@ -111,6 +133,7 @@ export default function ChatArea({
           loading={loading}
           showThreads={!!currentChannel}
           onReplyClick={setParentMessage}
+          highlightedMessageId={highlightedMessageId}
         />
 
         <MessageInput

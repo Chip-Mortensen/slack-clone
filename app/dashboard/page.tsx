@@ -316,7 +316,7 @@ export default function Dashboard() {
 
   const currentMessages = currentChannel ? channelMessages : directMessages
   const hasMore = currentChannel ? channelHasMore : directHasMore
-  const loadMore = currentChannel ? loadMoreChannelMessages : loadMoreDirectMessages
+  const loadMoreFn = currentChannel ? loadMoreChannelMessages : loadMoreDirectMessages
   const messagesLoading = currentChannel ? channelMessagesLoading : directMessagesLoading
 
   return (
@@ -356,7 +356,7 @@ export default function Dashboard() {
         newMessage={newMessage}
         setNewMessage={setNewMessage}
         hasMore={hasMore}
-        loadMore={loadMore}
+        loadMore={loadMoreFn}
         loading={messagesLoading}
       />
 

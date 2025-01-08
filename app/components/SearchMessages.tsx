@@ -9,9 +9,10 @@ import { useDebounce } from '../hooks/useDebounce'
 interface SearchMessagesProps {
   channelId?: string | null
   conversationId?: number | null
+  onMessageSelect?: (messageId: string | number) => void
 }
 
-export default function SearchMessages({ channelId, conversationId }: SearchMessagesProps) {
+export default function SearchMessages({ channelId, conversationId, onMessageSelect }: SearchMessagesProps) {
   const { supabase } = useSupabase()
   const [searchTerm, setSearchTerm] = useState('')
   const [results, setResults] = useState<(Message | DirectMessage)[]>([])
@@ -94,6 +95,11 @@ export default function SearchMessages({ channelId, conversationId }: SearchMess
     })
   }
 
+  const handleResultClick = (messageId: string | number) => {
+    onMessageSelect?.(messageId)
+    setIsOpen(false)
+  }
+
   return (
     <div className="relative" ref={dropdownRef}>
       <div className="flex items-center w-96 bg-gray-100 rounded-lg px-3 py-2">
@@ -118,10 +124,10 @@ export default function SearchMessages({ channelId, conversationId }: SearchMess
             const user = isChannelMessage ? result.profiles : result.sender
 
             return (
-              <div
+              <button
                 key={result.id}
-                className="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
-                onClick={() => setIsOpen(false)}
+                onClick={() => handleResultClick(result.id)}
+                className="w-full text-left p-2 hover:bg-gray-100"
               >
                 <div className="flex items-center space-x-2 mb-1">
                   <span className="font-medium text-sm">{user.username}</span>
@@ -130,7 +136,7 @@ export default function SearchMessages({ channelId, conversationId }: SearchMess
                   </span>
                 </div>
                 <p className="text-sm text-gray-700 line-clamp-2">{message}</p>
-              </div>
+              </button>
             )
           })}
         </div>

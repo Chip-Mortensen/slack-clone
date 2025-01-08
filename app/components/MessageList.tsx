@@ -15,9 +15,10 @@ interface MessageListProps {
   loading: boolean
   onReplyClick?: (message: Message) => void
   showThreads?: boolean
+  highlightedMessageId?: string | number
 }
 
-export default function MessageList({ messages, hasMore, loadMore, loading, onReplyClick, showThreads }: MessageListProps) {
+export default function MessageList({ messages, hasMore, loadMore, loading, onReplyClick, showThreads, highlightedMessageId }: MessageListProps) {
   const { supabase } = useSupabase()
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -27,6 +28,7 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
   const previousMessagesLength = useRef(messages.length)
   const [replyCounts, setReplyCounts] = useState<Record<string, number>>({})
   const isInitialLoad = useRef(true)
+  const [highlightedMessage, setHighlightedMessage] = useState<string | number | null>(null)
 
   // Add a ref for the observer target
   const observerTarget = useRef<HTMLDivElement>(null)
@@ -271,6 +273,39 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
     }
   }, [hasMore, loading, loadMore])
 
+  // Effect to handle message highlighting
+  useEffect(() => {
+    if (highlightedMessageId) {
+      setHighlightedMessage(highlightedMessageId)
+      // Remove highlight after 3 seconds
+      const timer = setTimeout(() => {
+        setHighlightedMessage(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [highlightedMessageId])
+
+  // Function to scroll to highlighted message
+  const scrollToMessage = useCallback((messageId: string | number) => {
+    // Wait a bit for any loading to complete
+    setTimeout(() => {
+      const messageElement = document.getElementById(`message-${messageId}`)
+      if (messageElement) {
+        messageElement.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center'
+        })
+      }
+    }, 200)
+  }, [])
+
+  // Scroll to highlighted message when it changes
+  useEffect(() => {
+    if (highlightedMessageId) {
+      scrollToMessage(highlightedMessageId)
+    }
+  }, [highlightedMessageId, scrollToMessage])
+
   return (
     <div 
       ref={containerRef}
@@ -309,8 +344,13 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
 
           return (
             <div 
-              key={message.id} 
-              className="flex items-start space-x-4 p-2 rounded-lg hover:bg-gray-50 transition-colors duration-150"
+              key={message.id}
+              id={`message-${message.id}`}
+              className={`flex items-start space-x-4 p-2 rounded-lg transition-colors duration-150
+                ${highlightedMessage === message.id 
+                  ? 'bg-yellow-100' 
+                  : 'hover:bg-gray-50'
+                }`}
             >
               <UserAvatar
                 userId={userId}
