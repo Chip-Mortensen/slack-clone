@@ -17,6 +17,9 @@ import ConfirmationModal from '../components/ConfirmationModal'
 import EditProfileModal from '../components/EditProfileModal'
 import { usePresence } from '../hooks/usePresence'
 
+// Add a new type for context switch source
+type ContextSwitchSource = 'search' | 'navigation'
+
 export default function Dashboard() {
   const router = useRouter()
   const { supabase } = useSupabase()
@@ -51,7 +54,8 @@ export default function Dashboard() {
     loading: channelMessagesLoading,
     sendMessage: sendChannelMessage,
     hasMore: channelHasMore,
-    loadMore: loadMoreChannelMessages
+    loadMore: loadMoreChannelMessages,
+    initialLoadPromise: channelLoadPromise
   } = useMessages(currentChannel?.id ?? null)
 
   // Direct message related hooks
@@ -69,7 +73,8 @@ export default function Dashboard() {
     loading: directMessagesLoading,
     sendMessage: sendDirectMessage,
     hasMore: directHasMore,
-    loadMore: loadMoreDirectMessages
+    loadMore: loadMoreDirectMessages,
+    initialLoadPromise: directMessageLoadPromise
   } = useDirectMessageChat(currentConversation)
 
   // Clear the other type of chat when one is selected
@@ -304,6 +309,45 @@ export default function Dashboard() {
     setProfile(data)
   }
 
+  const handleContextSwitch = async (
+    type: 'channel' | 'conversation',
+    id: string | number,
+    source: ContextSwitchSource = 'navigation'
+  ) => {
+    if (type === 'channel') {
+      const channel = channels.find(c => c.id === id)
+      if (channel) {
+        setCurrentChannel(channel)
+        setCurrentConversation(null)
+        // Pass the source to the messages hook
+        return { promise: channelLoadPromise, source }
+      }
+    } else {
+      const conversation = conversations.find(c => c.id === id)
+      if (conversation) {
+        setCurrentConversation(conversation)
+        setCurrentChannel(null)
+        return { promise: directMessageLoadPromise, source }
+      }
+    }
+    return null
+  }
+
+  const handleChannelSelect = (channelId: string | number, source: ContextSwitchSource = 'navigation') => {
+    return handleContextSwitch('channel', channelId, source)
+  }
+
+  const handleConversationSelect = (conversationId: string | number, source: ContextSwitchSource = 'navigation') => {
+    return handleContextSwitch('conversation', conversationId, source)
+  }
+
+  // Get current context values
+  const currentMessages = currentChannel ? channelMessages : directMessages
+  const hasMore = currentChannel ? channelHasMore : directHasMore
+  const loadMoreFn = currentChannel ? loadMoreChannelMessages : loadMoreDirectMessages
+  const messagesLoading = currentChannel ? channelMessagesLoading : directMessagesLoading
+  const initialLoadPromise = currentChannel ? channelLoadPromise : directMessageLoadPromise
+
   if (initialLoading || channelsLoading || conversationsLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -313,11 +357,6 @@ export default function Dashboard() {
   }
 
   if (!user) return null
-
-  const currentMessages = currentChannel ? channelMessages : directMessages
-  const hasMore = currentChannel ? channelHasMore : directHasMore
-  const loadMoreFn = currentChannel ? loadMoreChannelMessages : loadMoreDirectMessages
-  const messagesLoading = currentChannel ? channelMessagesLoading : directMessagesLoading
 
   return (
     <div className="flex h-screen">
@@ -358,6 +397,11 @@ export default function Dashboard() {
         hasMore={hasMore}
         loadMore={loadMoreFn}
         loading={messagesLoading}
+        onChannelSelect={handleChannelSelect}
+        onConversationSelect={handleConversationSelect}
+        channels={channels}
+        conversations={conversations}
+        initialLoadPromise={initialLoadPromise}
       />
 
       <CreateChannelModal

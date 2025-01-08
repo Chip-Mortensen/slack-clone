@@ -1,17 +1,27 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSupabase } from '../supabase-provider'
 import type { Message } from '@/app/types'
 
-export function useMessages(channelId: string | null) {
-  const { supabase } = useSupabase()
+export function useMessages(channelId: string | number | null) {
   const [messages, setMessages] = useState<Message[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
+  const loadingRef = useRef(false)
   const PAGE_SIZE = 20
 
-  // Function to fetch messages
-  const fetchMessages = async (lastTimestamp?: string) => {
-    if (!channelId) return
+  // Create a ref to store the current channelId
+  const currentChannelRef = useRef<string | number | null>(null)
+  
+  // Create a promise ref for the initial load
+  const initialLoadPromiseRef = useRef<Promise<void> | null>(null)
+
+  const { supabase } = useSupabase()
+
+  const fetchMessages = useCallback(async (lastTimestamp?: string) => {
+    if (!channelId || loadingRef.current) return null
+
+    loadingRef.current = true
+    setLoading(true)
 
     try {
       let query = supabase
@@ -33,46 +43,59 @@ export function useMessages(channelId: string | null) {
         .eq('channel_id', channelId)
 
       if (lastTimestamp) {
-        // For pagination, get older messages in ascending order
         query = query
           .lt('created_at', lastTimestamp)
           .order('created_at', { ascending: true })
           .limit(PAGE_SIZE)
       } else {
-        // For initial load, get newest messages in descending order
         query = query
           .order('created_at', { ascending: false })
           .limit(PAGE_SIZE)
       }
 
       const { data, error } = await query
-
       if (error) throw error
 
-      const newMessages = data || []
-      setHasMore(newMessages.length === PAGE_SIZE)
-      
-      if (lastTimestamp) {
-        // For pagination, add older messages to the beginning
-        setMessages(prev => [...newMessages, ...prev])
-      } else {
-        // For initial load, show newest messages at bottom
-        setMessages(newMessages.reverse())
+      // Only update state if we're still on the same channel
+      if (channelId === currentChannelRef.current) {
+        const newMessages = data || []
+        setHasMore(newMessages.length === PAGE_SIZE)
+        
+        if (lastTimestamp) {
+          setMessages(prev => [...newMessages, ...prev])
+        } else {
+          setMessages(newMessages.reverse())
+        }
       }
+
+      return data
     } catch (error) {
       console.error('Error fetching messages:', error)
+      return null
     } finally {
+      loadingRef.current = false
       setLoading(false)
     }
-  }
+  }, [channelId, supabase])
 
-  // Initial load
+  // Handle channel changes
   useEffect(() => {
-    setLoading(true)
+    currentChannelRef.current = channelId
     setMessages([])
     setHasMore(true)
-    fetchMessages()
-  }, [channelId])
+    
+    if (channelId) {
+      // Create a new promise for the initial load
+      initialLoadPromiseRef.current = fetchMessages()
+    } else {
+      initialLoadPromiseRef.current = null
+    }
+
+    return () => {
+      // Clear the promise when unmounting or changing channels
+      initialLoadPromiseRef.current = null
+    }
+  }, [channelId, fetchMessages])
 
   // Set up real-time subscription for new messages and reactions
   useEffect(() => {
@@ -179,16 +202,20 @@ export function useMessages(channelId: string | null) {
     }
   }
 
+  const loadMore = useCallback(async () => {
+    if (messages.length > 0 && !loadingRef.current) {
+      const oldestMessage = messages[0]
+      return fetchMessages(oldestMessage.created_at)
+    }
+    return null
+  }, [messages, fetchMessages])
+
   return {
     messages,
     loading,
     hasMore,
-    loadMore: () => {
-      if (messages.length > 0) {
-        const oldestMessage = messages[0]
-        fetchMessages(oldestMessage.created_at)
-      }
-    },
+    loadMore,
+    initialLoadPromise: initialLoadPromiseRef.current,
     sendMessage
   }
 } 

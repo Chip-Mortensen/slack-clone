@@ -17,6 +17,10 @@ export interface Message {
     username: string
     avatar_url: string | null
   }
+  channels: {
+    id: string | number
+    name: string
+  }
 }
 
 export interface Profile {
@@ -51,6 +55,11 @@ export interface DirectMessage {
   sender_id: string
   receiver_id: string
   sender: Profile
+  conversation: {
+    id: string | number
+    user1_id: string
+    user2_id: string
+  }
 }
 
 interface MessageReply {
@@ -63,4 +72,12 @@ interface MessageReply {
   file_name?: string
   profiles: Profile
   reactions?: MessageReaction[]
+}
+
+interface ChatAreaProps {
+  channels: Channel[]
+  conversations: Conversation[]
+  onChannelSelect: (channelId: string | number) => void
+  onConversationSelect: (conversationId: string | number) => void
+  initialLoadPromise?: Promise<void> | null
 } 

@@ -16,9 +16,11 @@ interface MessageListProps {
   onReplyClick?: (message: Message) => void
   showThreads?: boolean
   highlightedMessageId?: string | number
+  switchSource?: 'search' | 'navigation'
+  isSearching?: boolean
 }
 
-export default function MessageList({ messages, hasMore, loadMore, loading, onReplyClick, showThreads, highlightedMessageId }: MessageListProps) {
+export default function MessageList({ messages, hasMore, loadMore, loading, onReplyClick, showThreads, highlightedMessageId, isSearching = false }: MessageListProps) {
   const { supabase } = useSupabase()
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -27,8 +29,10 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
   const [isNearBottom, setIsNearBottom] = useState(true)
   const previousMessagesLength = useRef(messages.length)
   const [replyCounts, setReplyCounts] = useState<Record<string, number>>({})
-  const isInitialLoad = useRef(true)
+  const initialLoadRef = useRef(true)
   const [highlightedMessage, setHighlightedMessage] = useState<string | number | null>(null)
+  const isFirstRender = useRef(true)
+  const preventAutoScroll = useRef(false)
 
   // Add a ref for the observer target
   const observerTarget = useRef<HTMLDivElement>(null)
@@ -51,25 +55,21 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
     const isNewMessage = messages.length > previousMessagesLength.current
     previousMessagesLength.current = messages.length
 
-    if (messages.length > 0) {
-      if (isInitialLoad.current) {
-        // For initial load, scroll immediately with 'auto'
+    // Don't scroll if we're preventing auto-scroll
+    if (preventAutoScroll.current) {
+      return
+    }
+
+    // Only scroll to bottom if not searching
+    if (!isSearching) {
+      if (isFirstRender.current && messages.length > 0) {
         scrollToBottom('auto')
-        isInitialLoad.current = false
+        isFirstRender.current = false
       } else if (shouldAutoScroll && isNewMessage) {
-        // For new messages, use smooth scrolling
         scrollToBottom('smooth')
       }
     }
-  }, [messages, shouldAutoScroll])
-
-  // Reset scroll behavior when changing channels
-  useEffect(() => {
-    setShouldAutoScroll(true)
-    previousMessagesLength.current = 0
-    isInitialLoad.current = true // Reset initial load flag when changing channels
-    scrollToBottom('auto')
-  }, [messages.length === 0])
+  }, [messages, shouldAutoScroll, isSearching])
 
   useEffect(() => {
     async function getCurrentUser() {
@@ -277,11 +277,12 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
   useEffect(() => {
     if (highlightedMessageId) {
       setHighlightedMessage(highlightedMessageId)
-      // Remove highlight after 3 seconds
       const timer = setTimeout(() => {
         setHighlightedMessage(null)
       }, 3000)
       return () => clearTimeout(timer)
+    } else {
+      setHighlightedMessage(null)
     }
   }, [highlightedMessageId])
 
@@ -301,10 +302,44 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
 
   // Scroll to highlighted message when it changes
   useEffect(() => {
-    if (highlightedMessageId) {
-      scrollToMessage(highlightedMessageId)
+    if (highlightedMessageId && isSearching) {
+      preventAutoScroll.current = true
+      const messageElement = document.getElementById(`message-${highlightedMessageId}`)
+      if (messageElement) {
+        messageElement.scrollIntoView({ 
+          behavior: 'auto',
+          block: 'center'
+        })
+      }
     }
-  }, [highlightedMessageId, scrollToMessage])
+  }, [highlightedMessageId, isSearching])
+
+  // Set preventAutoScroll when search starts
+  useEffect(() => {
+    if (isSearching) {
+      preventAutoScroll.current = true
+    } else {
+      // Add a small delay before re-enabling auto-scroll
+      setTimeout(() => {
+        preventAutoScroll.current = false
+      }, 1000)
+    }
+  }, [isSearching])
+
+  // Reset flags when changing channels
+  useEffect(() => {
+    if (messages.length === 0) {
+      isFirstRender.current = true
+      preventAutoScroll.current = false
+    }
+  }, [messages.length])
+
+  // Modify the MessageContent onImageLoad handler
+  const handleImageLoad = () => {
+    if (isNearBottom && !isSearching && !preventAutoScroll.current) {
+      scrollToBottom()
+    }
+  }
 
   return (
     <div 
@@ -371,11 +406,7 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
                   content={content}
                   fileUrl={fileUrl}
                   fileName={fileName}
-                  onImageLoad={() => {
-                    if (isNearBottom) {
-                      scrollToBottom()
-                    }
-                  }}
+                  onImageLoad={handleImageLoad}
                 />
                 <div className="flex items-center gap-1">
                   {currentUserId && (

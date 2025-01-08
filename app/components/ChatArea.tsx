@@ -7,7 +7,7 @@ import MessageInput from './MessageInput'
 import UserAvatar from './UserAvatar'
 import SearchMessages from './SearchMessages'
 import ThreadSidebar from './ThreadSidebar'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 interface ChatAreaProps {
   currentChannel: Channel | null
@@ -19,6 +19,11 @@ interface ChatAreaProps {
   hasMore: boolean
   loadMore: () => void
   loading: boolean
+  onChannelSelect: (channelId: string | number, source?: 'search' | 'navigation') => Promise<{ promise?: Promise<void>, source?: 'search' | 'navigation' }>
+  onConversationSelect: (conversationId: string | number, source?: 'search' | 'navigation') => Promise<{ promise?: Promise<void>, source?: 'search' | 'navigation' }>
+  channels: Channel[]
+  conversations: Conversation[]
+  initialLoadPromise?: Promise<void> | null
 }
 
 export default function ChatArea({
@@ -30,10 +35,25 @@ export default function ChatArea({
   setNewMessage,
   hasMore,
   loadMore,
-  loading
+  loading,
+  onChannelSelect,
+  onConversationSelect,
+  channels,
+  conversations,
+  initialLoadPromise
 }: ChatAreaProps) {
   const [parentMessage, setParentMessage] = useState<Message | null>(null)
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | number | null>(null)
+  const [contextSwitchSource, setContextSwitchSource] = useState<'search' | 'navigation'>('navigation')
+  const searchModeRef = useRef(false)
+  const [isSearching, setIsSearching] = useState(false)
+  const searchCompleteRef = useRef<NodeJS.Timeout>()
+  const messagesRef = useRef<(Message | DirectMessage)[]>([])
+
+  // Keep messagesRef in sync
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
 
   // Close thread when channel or conversation changes
   useEffect(() => {
@@ -41,23 +61,75 @@ export default function ChatArea({
     setHighlightedMessageId(null) // Reset highlighted message when changing channels
   }, [currentChannel?.id, currentConversation?.id])
 
-  const handleMessageSelect = async (messageId: string | number) => {
-    // First ensure we have loaded enough messages
-    const messageExists = messages.some(m => m.id === messageId)
-    
-    if (!messageExists && hasMore && !loading) {
-      try {
-        // Load one batch of messages
-        await loadMore()
-        // Wait a bit for the messages to render
-        await new Promise(resolve => setTimeout(resolve, 200))
-      } catch (error) {
-        console.error('Error loading more messages:', error)
-      }
+  const handleMessageSelect = async (messageId: string | number, context: {
+    type: 'channel' | 'conversation'
+    id: string | number
+  }) => {
+    if (searchCompleteRef.current) {
+      clearTimeout(searchCompleteRef.current)
     }
+    
+    setIsSearching(true)
+    
+    try {
+      // Switch context if needed
+      if (context.type === 'channel' && (!currentChannel || currentChannel.id !== context.id)) {
+        const result = await onChannelSelect(context.id, 'search')
+        if (result?.promise) {
+          await result.promise
+        }
+      } else if (context.type === 'conversation' && (!currentConversation || currentConversation.id !== context.id)) {
+        const result = await onConversationSelect(context.id, 'search')
+        if (result?.promise) {
+          await result.promise
+        }
+      }
 
-    // Set the highlighted message ID which will trigger the scroll
-    setHighlightedMessageId(messageId)
+      // Wait for initial messages to load
+      let waitAttempts = 0
+      while (waitAttempts < 20 && messagesRef.current.length === 0) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+        waitAttempts++
+      }
+
+      // First check if message is in current batch
+      let messageFound = messagesRef.current.some(m => m.id === messageId)
+
+      // If not found and we have more messages, keep loading
+      if (!messageFound && hasMore) {
+        let loadAttempts = 0
+        while (!messageFound && hasMore && loadAttempts < 20) {
+          try {
+            await loadMore()
+            await new Promise(resolve => setTimeout(resolve, 300))
+            
+            // Check again after loading
+            messageFound = messagesRef.current.some(m => m.id === messageId)
+            loadAttempts++
+          } catch (error) {
+            console.error('Error loading more messages:', error)
+            break
+          }
+        }
+      }
+
+      if (messageFound) {
+        setHighlightedMessageId(messageId)
+        
+        // Clear highlight and search mode after delay
+        searchCompleteRef.current = setTimeout(() => {
+          setHighlightedMessageId(null)
+          setIsSearching(false)
+        }, 3000)
+      } else {
+        console.warn('Message not found after loading attempts:', messageId)
+        setIsSearching(false)
+        setHighlightedMessageId(null)
+      }
+    } catch (error) {
+      console.error('Error in handleMessageSelect:', error)
+      setIsSearching(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent, fileInfo?: { url: string, name: string }) => {
@@ -112,6 +184,15 @@ export default function ChatArea({
     return <h2 className="text-lg font-medium">Select a channel or conversation</h2>
   }
 
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchCompleteRef.current) {
+        clearTimeout(searchCompleteRef.current)
+      }
+    }
+  }, [])
+
   return (
     <div className="flex-1 flex">
       <div className="flex-1 flex flex-col">
@@ -123,6 +204,8 @@ export default function ChatArea({
             channelId={currentChannel?.id} 
             conversationId={currentConversation?.id}
             onMessageSelect={handleMessageSelect}
+            channels={channels}
+            conversations={conversations}
           />
         </div>
 
@@ -134,6 +217,7 @@ export default function ChatArea({
           showThreads={!!currentChannel}
           onReplyClick={setParentMessage}
           highlightedMessageId={highlightedMessageId}
+          isSearching={isSearching}
         />
 
         <MessageInput
