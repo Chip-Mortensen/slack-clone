@@ -1,27 +1,57 @@
+'use client'
+
 import { useEffect } from 'react'
 import { useSupabase } from '../supabase-provider'
+import { RealtimeChannel } from '@supabase/supabase-js'
 
-const PRESENCE_INTERVAL = 15000 // 15 seconds
-
-export function usePresence(userId: string | undefined) {
+export function usePresence() {
   const { supabase } = useSupabase()
 
   useEffect(() => {
-    if (!userId) return
+    let presenceChannel: RealtimeChannel
 
-    let interval: NodeJS.Timeout
-    let mounted = true
+    const setupPresence = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-    async function updatePresence() {
-      if (!mounted) return
+      // First create and subscribe to the channel
+      presenceChannel = supabase.channel('online-users')
+        .on('presence', { event: 'sync' }, () => {
+          // Handle presence sync
+        })
+        .on('presence', { event: 'join' }, ({ key }) => {
+          if (key === user.id) {
+            updatePresence(user.id, true)
+          }
+        })
+        .on('presence', { event: 'leave' }, ({ key }) => {
+          if (key === user.id) {
+            updatePresence(user.id, false)
+          }
+        })
 
+      // Subscribe first
+      await presenceChannel.subscribe()
+
+      // Then track presence
+      await presenceChannel.track({
+        user_id: user.id,
+        online_at: new Date().toISOString()
+      })
+
+      // Update initial presence
+      await updatePresence(user.id, true)
+    }
+
+    const updatePresence = async (userId: string, isOnline: boolean) => {
       try {
         const { error } = await supabase
           .from('user_presence')
           .upsert(
             {
+              id: userId,
               user_id: userId,
-              is_online: true,
+              is_online: isOnline,
               last_seen: new Date().toISOString()
             },
             {
@@ -30,38 +60,23 @@ export function usePresence(userId: string | undefined) {
             }
           )
 
-        if (error) {
-          throw error
-        }
+        if (error) throw error
       } catch (error) {
         console.error('Error updating presence:', error)
       }
     }
 
-    updatePresence()
-    interval = setInterval(updatePresence, PRESENCE_INTERVAL)
-
-    const handleBeforeUnload = async () => {
-      try {
-        await supabase
-          .from('user_presence')
-          .update({
-            is_online: false,
-            last_seen: new Date().toISOString()
-          })
-          .eq('user_id', userId)
-      } catch (error) {
-        console.error('Error updating offline status:', error)
-      }
-    }
-
-    window.addEventListener('beforeunload', handleBeforeUnload)
+    setupPresence()
 
     return () => {
-      mounted = false
-      clearInterval(interval)
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-      handleBeforeUnload()
+      if (presenceChannel) {
+        const userId = presenceChannel.presenceState()?.[0]?.user_id
+        if (userId) {
+          updatePresence(userId, false).then(() => {
+            presenceChannel.unsubscribe()
+          })
+        }
+      }
     }
-  }, [userId, supabase])
+  }, [supabase])
 } 

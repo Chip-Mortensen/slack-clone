@@ -14,7 +14,7 @@ interface UserAvatarProps {
   avatarUrl: string | null
   username: string
   size?: 'sm' | 'md' | 'lg'
-  showStatus?: boolean
+  showPresence?: boolean
 }
 
 interface UserPresence {
@@ -27,78 +27,48 @@ export default function UserAvatar({
   avatarUrl, 
   username,
   size = 'md',
-  showStatus = true 
+  showPresence = true 
 }: UserAvatarProps) {
-  const { status } = useUserStatus(userId)
   const { supabase } = useSupabase()
-  const [presence, setPresence] = useState<UserPresence | null>(null)
+  const [isOnline, setIsOnline] = useState(false)
 
   useEffect(() => {
-    let presenceChannel: ReturnType<typeof supabase.channel>
-    let mounted = true
+    if (!showPresence) return
 
-    async function setupPresence() {
-      try {
-        // Initial fetch with a small delay to handle race conditions
-        await new Promise(resolve => setTimeout(resolve, 100))
-        
-        const { data, error } = await supabase
-          .from('user_presence')
-          .select('is_online, last_seen')
-          .eq('user_id', userId)
-          .maybeSingle()
-
-        if (error) {
-          console.error('Error fetching presence:', error)
-          return
-        }
-
-        if (data && mounted) {
-          setPresence(data)
-        }
-
-        presenceChannel = supabase.channel(`presence:${userId}`)
-          .on(
-            'postgres_changes',
-            {
-              event: '*',
-              schema: 'public',
-              table: 'user_presence',
-              filter: `user_id=eq.${userId}`
-            },
-            (payload) => {
-              if (!mounted) return
-              
-              if (payload.new) {
-                setPresence(payload.new as UserPresence)
-              } else if (payload.old && !payload.new) {
-                setPresence(null)
-              }
-            }
-          )
-          .subscribe()
-      } catch (error) {
-        console.error('Error setting up presence:', error)
-      }
+    // Get initial presence state
+    const getPresence = async () => {
+      const { data } = await supabase
+        .from('user_presence')
+        .select('is_online')
+        .eq('user_id', userId)
+        .single()
+      
+      setIsOnline(data?.is_online || false)
     }
 
-    if (userId) {
-      setupPresence()
-    }
+    getPresence()
+
+    // Subscribe to presence changes
+    const channel = supabase
+      .channel('presence-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_presence',
+          filter: `user_id=eq.${userId}`
+        },
+        (payload) => {
+          setIsOnline(payload.new.is_online)
+        }
+      )
+      .subscribe()
 
     return () => {
-      mounted = false
-      if (presenceChannel) {
-        supabase.removeChannel(presenceChannel)
-      }
+      supabase.removeChannel(channel)
     }
-  }, [userId, supabase])
-
-  // Reduce stale timeout to 1 minute for more accurate presence
-  const isPresenceStale = presence?.last_seen && 
-    new Date().getTime() - new Date(presence.last_seen).getTime() > 60000
-
-  const isOnline = presence?.is_online && !isPresenceStale
+  }, [supabase, userId, showPresence])
 
   const sizeClasses = {
     sm: 'w-6 h-6',
@@ -133,18 +103,7 @@ export default function UserAvatar({
           />
         )}
       </div>
-      {showStatus && status && (
-        <div 
-          className={`
-            absolute left-1/2 top-0 -translate-x-1/2
-            ${statusSizeClasses[size]}
-          `}
-          title={status === 'in_meeting' ? 'In a meeting' : 'Commuting'}
-        >
-          {STATUS_EMOJIS[status]}
-        </div>
-      )}
-      {presence !== null && (
+      {showPresence && (
         <div 
           className={`
             absolute bottom-0 right-0

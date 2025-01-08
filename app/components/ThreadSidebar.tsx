@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useSupabase } from '../supabase-provider'
 import { X } from 'lucide-react'
 import type { Message, MessageReply } from '@/app/types'
 import MessageInput from './MessageInput'
 import MessageContent from './MessageContent'
 import UserAvatar from './UserAvatar'
+import MessageReactions from './MessageReactions'
 
 interface ThreadSidebarProps {
   parentMessage: Message | null
@@ -18,6 +19,54 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
   const [replies, setReplies] = useState<MessageReply[]>([])
   const [newReply, setNewReply] = useState('')
   const [loading, setLoading] = useState(true)
+  const [atBottom, setAtBottom] = useState(true)
+  const repliesEndRef = useRef<HTMLDivElement>(null)
+  const repliesContainerRef = useRef<HTMLDivElement>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    if (repliesContainerRef.current) {
+      repliesContainerRef.current.scrollTop = repliesContainerRef.current.scrollHeight
+    }
+  }
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollHeight, scrollTop, clientHeight } = e.currentTarget
+    const buffer = 100 // pixels from bottom to consider "at bottom"
+    setAtBottom(scrollHeight - scrollTop - clientHeight < buffer)
+  }
+
+  // Scroll to bottom on initial load and new messages if user was at bottom
+  useEffect(() => {
+    if (atBottom) {
+      scrollToBottom('auto')
+    }
+  }, [replies])
+
+  // Initial scroll
+  useEffect(() => {
+    // Use 'auto' for initial load
+    scrollToBottom('auto')
+  }, [])
+
+  // Add an effect to handle image loading
+  useEffect(() => {
+    const images = repliesContainerRef.current?.getElementsByTagName('img')
+    if (!images) return
+
+    const imageLoadPromises = Array.from(images).map(img => {
+      if (img.complete) return Promise.resolve()
+      return new Promise(resolve => {
+        img.addEventListener('load', resolve, { once: true })
+      })
+    })
+
+    Promise.all(imageLoadPromises).then(() => {
+      if (atBottom) {
+        scrollToBottom()
+      }
+    })
+  }, [replies])
 
   const formatTimestamp = (timestamp: Date) => {
     const now = new Date()
@@ -55,6 +104,12 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
               id,
               username,
               avatar_url
+            ),
+            reactions:message_reactions!message_reactions_reply_id_fkey (
+              id,
+              emoji,
+              user_id,
+              created_at
             )
           `)
           .eq('message_id', parentMessage.id)
@@ -71,6 +126,7 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
 
     fetchReplies()
 
+    // Create a channel for both replies and their reactions
     const repliesChannel = supabase
       .channel(`message_replies:${parentMessage.id}`)
       .on(
@@ -90,6 +146,12 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
                 id,
                 username,
                 avatar_url
+              ),
+              reactions:message_reactions!message_reactions_reply_id_fkey (
+                id,
+                emoji,
+                user_id,
+                created_at
               )
             `)
             .eq('id', payload.new.id)
@@ -100,16 +162,29 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
           }
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'message_reactions',
+          filter: `reply_id=in.(${replies.map(reply => `'${reply.id}'`).join(',')})`
+        },
+        () => {
+          // Refetch replies when reactions change
+          fetchReplies()
+        }
+      )
       .subscribe()
 
     return () => {
       supabase.removeChannel(repliesChannel)
     }
-  }, [parentMessage, supabase])
+  }, [parentMessage, supabase, replies])
 
-  const handleSendReply = async (e: React.FormEvent) => {
+  const handleSendReply = async (e: React.FormEvent, fileInfo?: { url: string, name: string }) => {
     e.preventDefault()
-    if (!parentMessage || !newReply.trim()) return
+    if (!parentMessage || (!newReply.trim() && !fileInfo)) return
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -120,7 +195,9 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
         .insert({
           message_id: parentMessage.id,
           content: newReply,
-          user_id: user.id
+          user_id: user.id,
+          file_url: fileInfo?.url,
+          file_name: fileInfo?.name
         })
         .select()
 
@@ -128,6 +205,48 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
       setNewReply('')
     } catch (error) {
       console.error('Error sending reply:', error)
+    }
+  }
+
+  // Get current user
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setCurrentUserId(user.id)
+      }
+    }
+    getCurrentUser()
+  }, [supabase])
+
+  const handleAddReaction = async (replyId: number, emoji: string) => {
+    if (!currentUserId) return
+
+    try {
+      const { error } = await supabase
+        .from('message_reactions')
+        .insert({
+          reply_id: replyId,
+          user_id: currentUserId,
+          emoji
+        })
+
+      if (error) throw error
+    } catch (error) {
+      console.error('Error adding reaction:', error)
+    }
+  }
+
+  const handleRemoveReaction = async (reactionId: number) => {
+    try {
+      const { error } = await supabase
+        .from('message_reactions')
+        .delete()
+        .eq('id', reactionId)
+
+      if (error) throw error
+    } catch (error) {
+      console.error('Error removing reaction:', error)
     }
   }
 
@@ -174,15 +293,22 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
       </div>
 
       {/* Replies */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div 
+        ref={repliesContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+      >
         {replies.map((reply) => (
-          <div key={reply.id} className="flex items-start space-x-3">
+          <div 
+            key={reply.id} 
+            className="flex items-start space-x-3 p-2 rounded-lg hover:bg-gray-50 transition-colors duration-150"
+          >
             <UserAvatar
               userId={reply.user_id}
               avatarUrl={reply.profiles.avatar_url}
               username={reply.profiles.username}
             />
-            <div>
+            <div className="flex-1 min-w-0">
               <div className="flex items-center space-x-2">
                 <span className="font-medium">{reply.profiles.username}</span>
                 <span className="text-sm text-gray-500">
@@ -193,14 +319,30 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
                 content={reply.content}
                 fileUrl={reply.file_url}
                 fileName={reply.file_name}
+                onImageLoad={() => {
+                  if (atBottom) {
+                    scrollToBottom()
+                  }
+                }}
               />
+              {currentUserId && (
+                <MessageReactions
+                  messageId={reply.id}
+                  isReply={true}
+                  reactions={reply.reactions || []}
+                  currentUserId={currentUserId}
+                  onAddReaction={(emoji) => handleAddReaction(reply.id, emoji)}
+                  onRemoveReaction={handleRemoveReaction}
+                />
+              )}
             </div>
           </div>
         ))}
+        <div ref={repliesEndRef} />
       </div>
 
       {/* Reply Input */}
-      <div className="p-4 border-t border-gray-200">
+      <div className="bg-gray-100 border-gray-200">
         <MessageInput
           value={newReply}
           onChange={setNewReply}
@@ -211,7 +353,6 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
               e.preventDefault()
               const form = e.currentTarget.form
               if (form) {
-                // Find and click the submit button
                 const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement
                 if (submitButton && !submitButton.disabled) {
                   submitButton.click()

@@ -7,7 +7,7 @@ import MessageInput from './MessageInput'
 import UserAvatar from './UserAvatar'
 import SearchMessages from './SearchMessages'
 import ThreadSidebar from './ThreadSidebar'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface ChatAreaProps {
   currentChannel: Channel | null
@@ -32,7 +32,12 @@ export default function ChatArea({
   loadMore,
   loading
 }: ChatAreaProps) {
-  const [threadMessage, setThreadMessage] = useState<Message | null>(null)
+  const [parentMessage, setParentMessage] = useState<Message | null>(null)
+
+  // Close thread when channel or conversation changes
+  useEffect(() => {
+    setParentMessage(null)
+  }, [currentChannel?.id, currentConversation?.id])
 
   const handleSubmit = async (e: React.FormEvent, fileInfo?: { url: string, name: string }) => {
     e.preventDefault()
@@ -105,7 +110,7 @@ export default function ChatArea({
           loadMore={loadMore}
           loading={loading}
           showThreads={!!currentChannel}
-          onReplyClick={setThreadMessage}
+          onReplyClick={setParentMessage}
         />
 
         <MessageInput
@@ -128,10 +133,10 @@ export default function ChatArea({
         />
       </div>
 
-      {threadMessage && (
+      {parentMessage && (
         <ThreadSidebar
-          parentMessage={threadMessage}
-          onClose={() => setThreadMessage(null)}
+          parentMessage={parentMessage}
+          onClose={() => setParentMessage(null)}
         />
       )}
     </div>

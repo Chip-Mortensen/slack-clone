@@ -26,6 +26,7 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
   const containerRef = useRef<HTMLDivElement>(null)
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
   const [replyCounts, setReplyCounts] = useState<Record<string, number>>({})
+  const [atBottom, setAtBottom] = useState(true)
 
   const isNearBottom = () => {
     const container = containerRef.current
@@ -44,8 +45,10 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
   }
 
   // Handle scroll events to determine if we should auto-scroll
-  const handleScroll = () => {
-    setShouldAutoScroll(isNearBottom())
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollHeight, scrollTop, clientHeight } = e.currentTarget
+    const buffer = 100 // pixels from bottom to consider "at bottom"
+    setAtBottom(scrollHeight - scrollTop - clientHeight < buffer)
   }
 
   // Handle initial load and new messages
@@ -269,6 +272,18 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
     }
   }
 
+  // Scroll to bottom on initial load and new messages if user was at bottom
+  useEffect(() => {
+    if (atBottom) {
+      scrollToBottom()
+    }
+  }, [messages])
+
+  // Initial scroll to bottom
+  useEffect(() => {
+    scrollToBottom()
+  }, [])
+
   return (
     <div 
       ref={containerRef}
@@ -329,6 +344,11 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
                   content={content}
                   fileUrl={fileUrl}
                   fileName={fileName}
+                  onImageLoad={() => {
+                    if (atBottom) {
+                      scrollToBottom()
+                    }
+                  }}
                 />
                 <div className="flex items-center gap-1">
                   {currentUserId && (

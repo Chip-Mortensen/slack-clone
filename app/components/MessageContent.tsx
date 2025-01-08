@@ -1,12 +1,14 @@
 import { Paperclip } from 'lucide-react'
+import { useEffect } from 'react'
 
 interface MessageContentProps {
   content: string
   fileUrl?: string | null
   fileName?: string | null
+  onImageLoad?: () => void
 }
 
-export default function MessageContent({ content, fileUrl, fileName }: MessageContentProps) {
+export default function MessageContent({ content, fileUrl, fileName, onImageLoad }: MessageContentProps) {
   const isImageFile = fileUrl?.match(/\.(jpg|jpeg|png|gif|webp)$/i)
 
   return (
@@ -20,7 +22,8 @@ export default function MessageContent({ content, fileUrl, fileName }: MessageCo
               <img 
                 src={fileUrl} 
                 alt={fileName || 'Attached image'} 
-                className="max-w-sm rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200"
+                className="max-w-full w-auto h-auto max-h-[300px] rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 object-contain"
+                onLoad={onImageLoad}
               />
               <a 
                 href={fileUrl} 

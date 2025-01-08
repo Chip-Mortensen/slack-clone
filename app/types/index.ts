@@ -51,4 +51,16 @@ export interface DirectMessage {
   sender_id: string
   receiver_id: string
   sender: Profile
+}
+
+interface MessageReply {
+  id: number
+  message_id: number
+  user_id: string
+  content: string
+  created_at: string
+  file_url?: string
+  file_name?: string
+  profiles: Profile
+  reactions?: MessageReaction[]
 } 
