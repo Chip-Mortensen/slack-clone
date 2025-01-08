@@ -7,19 +7,43 @@ interface MessageContentProps {
 }
 
 export default function MessageContent({ content, fileUrl, fileName }: MessageContentProps) {
+  const isImageFile = fileUrl?.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+
   return (
-    <div className="mt-1 text-gray-900">
-      <p className="whitespace-pre-wrap break-words">{content}</p>
-      {fileUrl && fileName && (
-        <a
-          href={fileUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 inline-flex items-center space-x-2 text-blue-600 hover:text-blue-800"
-        >
-          <Paperclip size={16} />
-          <span>{fileName}</span>
-        </a>
+    <div className="space-y-2">
+      <div className="whitespace-pre-wrap">{content}</div>
+      
+      {fileUrl && (
+        <div className="mt-2">
+          {isImageFile ? (
+            <div className="space-y-2">
+              <img 
+                src={fileUrl} 
+                alt={fileName || 'Attached image'} 
+                className="max-w-sm rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200"
+              />
+              <a 
+                href={fileUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center text-sm text-blue-500 hover:text-blue-600"
+              >
+                <Paperclip size={16} className="mr-1" />
+                {fileName || 'Download image'}
+              </a>
+            </div>
+          ) : (
+            <a 
+              href={fileUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center text-sm text-blue-500 hover:text-blue-600"
+            >
+              <Paperclip size={16} className="mr-1" />
+              {fileName || 'Download file'}
+            </a>
+          )}
+        </div>
       )}
     </div>
   )

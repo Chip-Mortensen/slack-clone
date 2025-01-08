@@ -167,18 +167,24 @@ export function useDirectMessageChat(conversation: Conversation | null) {
     sendMessage: async (message: string, userId: string, fileUrl?: string, fileName?: string) => {
       if (!conversation) return
 
+      // Determine receiver_id based on the conversation
+      const receiverId = conversation.user1_id === userId 
+        ? conversation.user2_id 
+        : conversation.user1_id
+
       const { error } = await supabase
         .from('direct_messages')
         .insert({
-          message,
-          sender_id: userId,
           conversation_id: conversation.id,
+          sender_id: userId,
+          receiver_id: receiverId,
+          message: message,
           file_url: fileUrl,
           file_name: fileName
         })
 
       if (error) {
-        console.error('Error sending direct message:', error)
+        console.error('Error sending message:', error)
         throw error
       }
     }

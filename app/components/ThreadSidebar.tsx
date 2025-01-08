@@ -45,11 +45,8 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
   useEffect(() => {
     if (!parentMessage) return
 
-    // Fetch initial replies
     const fetchReplies = async () => {
       try {
-        console.log('Fetching replies for message:', parentMessage.id)
-        
         const { data, error } = await supabase
           .from('message_replies')
           .select(`
@@ -63,12 +60,7 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
           .eq('message_id', parentMessage.id)
           .order('created_at', { ascending: true })
 
-        if (error) {
-          console.error('Supabase error details:', error)
-          throw error
-        }
-        
-        console.log('Fetched replies:', data)
+        if (error) throw error
         setReplies(data || [])
       } catch (error) {
         console.error('Error fetching replies:', error)
@@ -79,7 +71,6 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
 
     fetchReplies()
 
-    // Subscribe to new replies
     const repliesChannel = supabase
       .channel(`message_replies:${parentMessage.id}`)
       .on(
@@ -91,7 +82,6 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
           filter: `message_id=eq.${parentMessage.id}`
         },
         async (payload) => {
-          // Fetch the complete reply data including profile
           const { data, error } = await supabase
             .from('message_replies')
             .select(`
@@ -106,9 +96,7 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
             .single()
 
           if (!error && data) {
-            setReplies(prev => [...prev, data]);
-            // Force a re-render of the header by updating replies
-            setReplies(prev => [...prev]);
+            setReplies(prev => [...prev, data])
           }
         }
       )
@@ -126,8 +114,6 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('No user found')
-
-      console.log('Sending reply to message:', parentMessage.id)
       
       const { data, error } = await supabase
         .from('message_replies')
@@ -139,8 +125,6 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
         .select()
 
       if (error) throw error
-      console.log('Reply sent successfully:', data)
-
       setNewReply('')
     } catch (error) {
       console.error('Error sending reply:', error)

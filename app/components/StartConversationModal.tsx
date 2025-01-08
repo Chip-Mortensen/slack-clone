@@ -53,12 +53,16 @@ export default function StartConversationModal({
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('No user found')
 
-      // Create conversation
+      // Determine user order based on ID values
+      const [user1_id, user2_id] = [user.id, userId].sort()
+
+      // Create the conversation with ordered user IDs
       const { data: conversation, error: convError } = await supabase
         .from('conversations')
         .insert({
-          user1_id: user.id,
-          user2_id: userId
+          user1_id,
+          user2_id,
+          updated_at: new Date().toISOString()
         })
         .select()
         .single()
@@ -69,6 +73,7 @@ export default function StartConversationModal({
       setUsers([])
       onClose()
     } catch (error) {
+      console.error('Error creating conversation:', error)
       setError(error instanceof Error ? error.message : 'Failed to start conversation')
     } finally {
       setLoading(false)

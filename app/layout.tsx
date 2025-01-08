@@ -9,7 +9,7 @@ const inter = Inter({
 })
 
 export const metadata = {
-  title: 'Slack Clone',
+  title: 'Slacker',
   description: 'A simple Slack clone built with Next.js and Supabase',
 }
 

@@ -55,7 +55,7 @@ export default function Sidebar({
       <div className="flex flex-col h-full">
         {/* Workspace Header */}
         <div className="p-4 border-b border-gray-800">
-          <h1 className="text-xl font-bold">Slack</h1>
+          <h1 className="text-xl font-bold">Slacker</h1>
         </div>
 
         {/* Channels Section */}
