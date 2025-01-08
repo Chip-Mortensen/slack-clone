@@ -4,7 +4,7 @@ import type { Message, DirectMessage } from '@/app/types'
 import MessageReactions from './MessageReactions'
 import UserAvatar from './UserAvatar'
 import { useSupabase } from '../supabase-provider'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { Paperclip, MessageSquare } from 'lucide-react'
 import MessageContent from './MessageContent'
 
@@ -21,81 +21,53 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
   const { supabase } = useSupabase()
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const observerRef = useRef<HTMLDivElement>(null)
-  const [isInitialLoad, setIsInitialLoad] = useState(true)
   const containerRef = useRef<HTMLDivElement>(null)
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
+  const [isNearBottom, setIsNearBottom] = useState(true)
+  const previousMessagesLength = useRef(messages.length)
   const [replyCounts, setReplyCounts] = useState<Record<string, number>>({})
-  const [atBottom, setAtBottom] = useState(true)
+  const isInitialLoad = useRef(true)
 
-  const isNearBottom = () => {
-    const container = containerRef.current
-    if (container) {
-      const { scrollHeight, scrollTop, clientHeight } = container
-      return scrollHeight - scrollTop - clientHeight < 100
-    }
-    return false
+  // Add a ref for the observer target
+  const observerTarget = useRef<HTMLDivElement>(null)
+
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior })
   }
 
-  const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
-    const container = containerRef.current
-    if (container) {
-      container.scrollTop = container.scrollHeight
-    }
-  }
-
-  // Handle scroll events to determine if we should auto-scroll
+  // Check if user is near bottom when scrolling
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollHeight, scrollTop, clientHeight } = e.currentTarget
-    const buffer = 100 // pixels from bottom to consider "at bottom"
-    setAtBottom(scrollHeight - scrollTop - clientHeight < buffer)
+    const buffer = 100 // pixels from bottom to consider "near bottom"
+    const isClose = scrollHeight - scrollTop - clientHeight < buffer
+    setIsNearBottom(isClose)
+    setShouldAutoScroll(isClose) // Only auto-scroll for new messages if user is near bottom
   }
 
   // Handle initial load and new messages
   useEffect(() => {
+    const isNewMessage = messages.length > previousMessagesLength.current
+    previousMessagesLength.current = messages.length
+
     if (messages.length > 0) {
-      if (isInitialLoad) {
+      if (isInitialLoad.current) {
+        // For initial load, scroll immediately with 'auto'
         scrollToBottom('auto')
-        setIsInitialLoad(false)
-        setShouldAutoScroll(true)
-      } else if (shouldAutoScroll) {
+        isInitialLoad.current = false
+      } else if (shouldAutoScroll && isNewMessage) {
+        // For new messages, use smooth scrolling
         scrollToBottom('smooth')
       }
     }
-  }, [messages, isInitialLoad, shouldAutoScroll])
+  }, [messages, shouldAutoScroll])
 
-  // Reset states when channel changes
+  // Reset scroll behavior when changing channels
   useEffect(() => {
-    setIsInitialLoad(true)
     setShouldAutoScroll(true)
+    previousMessagesLength.current = 0
+    isInitialLoad.current = true // Reset initial load flag when changing channels
+    scrollToBottom('auto')
   }, [messages.length === 0])
-
-  // Intersection Observer for infinite scroll
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loading) {
-          loadMore()
-        }
-      },
-      { 
-        root: containerRef.current,
-        threshold: 0,
-        rootMargin: '200px 0px'
-      }
-    )
-
-    const target = observerRef.current
-    if (target) {
-      observer.observe(target)
-    }
-
-    return () => {
-      if (target) {
-        observer.unobserve(target)
-      }
-    }
-  }, [hasMore, loading, loadMore])
 
   useEffect(() => {
     async function getCurrentUser() {
@@ -272,17 +244,32 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
     }
   }
 
-  // Scroll to bottom on initial load and new messages if user was at bottom
+  // Separate useEffect for intersection observer
   useEffect(() => {
-    if (atBottom) {
-      scrollToBottom()
-    }
-  }, [messages])
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loading) {
+          loadMore()
+        }
+      },
+      { 
+        root: containerRef.current,
+        threshold: 0,
+        rootMargin: '200px 0px'
+      }
+    )
 
-  // Initial scroll to bottom
-  useEffect(() => {
-    scrollToBottom()
-  }, [])
+    const currentTarget = observerTarget.current
+    if (currentTarget) {
+      observer.observe(currentTarget)
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.disconnect()
+      }
+    }
+  }, [hasMore, loading, loadMore])
 
   return (
     <div 
@@ -290,19 +277,19 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
       onScroll={handleScroll}
       className="flex-1 overflow-y-auto p-6 bg-white messages-container"
     >
+      {/* Observer target for infinite scroll - moved to top */}
+      <div 
+        ref={observerTarget}
+        className="h-8 -mt-4"
+        style={{ visibility: hasMore ? 'visible' : 'hidden' }}
+      />
+
       {/* Loading indicator */}
       {loading && messages.length > 0 && (
         <div className="text-center py-4">
           <span className="text-gray-500">Loading more messages...</span>
         </div>
       )}
-
-      {/* Observer target at the top */}
-      <div 
-        ref={observerRef} 
-        className="h-8 -mt-4"
-        style={{ visibility: hasMore ? 'visible' : 'hidden' }}
-      />
 
       <div className="space-y-1">
         {messages.map((message) => {
@@ -345,7 +332,7 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
                   fileUrl={fileUrl}
                   fileName={fileName}
                   onImageLoad={() => {
-                    if (atBottom) {
+                    if (isNearBottom) {
                       scrollToBottom()
                     }
                   }}
