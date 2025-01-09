@@ -1,18 +1,15 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { Search } from 'lucide-react'
+import { useState, useCallback } from 'react'
 import { useSupabase } from '../supabase-provider'
-import type { Message, DirectMessage, Channel, Conversation } from '@/app/types'
-import { useDebounce } from '../hooks/useDebounce'
+import type { Channel, Conversation } from '@/app/types'
+import type { SearchToken } from '@/app/types/search'
+import SearchInput from './SearchInput'
 
 interface SearchMessagesProps {
-  channelId?: string | null
-  conversationId?: number | null
-  onMessageSelect?: (messageId: string | number, context: { 
-    type: 'channel' | 'conversation', 
-    id: string | number 
-  }) => void
+  channelId?: string | number | null
+  conversationId?: string | number | null
+  onMessageSelect: (messageId: string | number, context: { type: 'channel' | 'conversation', id: string | number }) => void
   channels: Channel[]
   conversations: Conversation[]
 }
@@ -20,181 +17,174 @@ interface SearchMessagesProps {
 export default function SearchMessages({ 
   channelId, 
   conversationId, 
-  onMessageSelect,
-  channels,
+  onMessageSelect, 
+  channels, 
   conversations 
 }: SearchMessagesProps) {
+  const [results, setResults] = useState<Array<{
+    id: string | number
+    content: string
+    context: {
+      type: 'channel' | 'conversation'
+      id: string | number
+    }
+    channel?: string
+    user: string
+    timestamp: Date
+  }>>([])
   const { supabase } = useSupabase()
-  const [searchTerm, setSearchTerm] = useState('')
-  const [results, setResults] = useState<(Message | DirectMessage)[]>([])
-  const [isOpen, setIsOpen] = useState(false)
-  const debouncedSearch = useDebounce(searchTerm, 300)
-  const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // Parse search context from search term
-  const parseSearchContext = (term: string): { 
-    context: 'channel' | 'conversation' | 'global',
-    contextId?: string | number,
-    searchText: string 
-  } => {
-    const channelMatch = term.match(/^#([^\s]+)\s(.+)/)
-    const userMatch = term.match(/^@([^\s]+)\s(.+)/)
+  const handleSearch = useCallback(async (tokens: SearchToken[]) => {
+    console.log('Search triggered with tokens:', tokens)
+    
+    // No search if we only have context tokens
+    if (!tokens.length || (tokens.length === 1 && tokens[0].type !== 'text')) {
+      console.log('No search - only context or no tokens')
+      setResults([])
+      return
+    }
 
-    if (channelMatch) {
-      const channel = channels.find(c => c.name === channelMatch[1])
-      return {
-        context: 'channel',
-        contextId: channel?.id,
-        searchText: channelMatch[2]
+    // Get context from tokens
+    const contextToken = tokens.find(t => t.type === 'channel' || t.type === 'user')
+    const searchTerms = tokens
+      .filter(t => t.type === 'text')
+      .map(t => t.value)
+      .join(' ')
+
+    if (!searchTerms) {
+      setResults([])
+      return
+    }
+
+    try {
+      let promises = []
+
+      // Search in channel messages if not in conversation context
+      if (!contextToken || contextToken.type === 'channel') {
+        const channelQuery = supabase
+          .from('messages')
+          .select(`
+            id,
+            content,
+            created_at,
+            channel_id,
+            profiles!inner(username),
+            channels!inner(name)
+          `)
+          .ilike('content', `%${searchTerms}%`)
+
+        if (contextToken?.type === 'channel' && contextToken.id) {
+          channelQuery.eq('channel_id', contextToken.id)
+        }
+
+        promises.push(channelQuery)
       }
-    }
 
-    if (userMatch) {
-      const conversation = conversations.find(c => 
-        c.other_user.username === userMatch[1]
-      )
-      return {
-        context: 'conversation',
-        contextId: conversation?.id,
-        searchText: userMatch[2]
+      // Search in direct messages if not in channel context
+      if (!contextToken || contextToken.type === 'user') {
+        const dmQuery = supabase
+          .from('direct_messages')
+          .select(`
+            id,
+            message,
+            created_at,
+            sender:sender_id(username),
+            conversation_id
+          `)
+          .ilike('message', `%${searchTerms}%`)
+
+        if (contextToken?.type === 'user' && contextToken.id) {
+          dmQuery.eq('conversation_id', contextToken.id)
+        }
+
+        promises.push(dmQuery)
       }
-    }
 
-    // Default to current context or global
-    if (channelId) {
-      return { context: 'channel', contextId: channelId, searchText: term }
-    }
-    if (conversationId) {
-      return { context: 'conversation', contextId: conversationId, searchText: term }
-    }
+      const responses = await Promise.all(promises)
+      const errors = responses.filter(r => r.error).map(r => r.error)
+      if (errors.length > 0) {
+        console.error('Search errors:', errors)
+        throw errors[0]
+      }
 
-    return { context: 'global', searchText: term }
+      const allResults = responses.flatMap(r => r.data || [])
+        .map(result => ({
+          id: result.id,
+          content: 'message' in result ? result.message : result.content,
+          context: {
+            type: 'message' in result ? 'conversation' : 'channel',
+            id: 'conversation_id' in result ? result.conversation_id : result.channel_id
+          },
+          channel: 'channels' in result ? result.channels.name : undefined,
+          user: 'profiles' in result ? result.profiles.username : result.sender.username,
+          timestamp: new Date(result.created_at)
+        }))
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+
+      setResults(allResults)
+    } catch (error) {
+      console.error('Search error:', error)
+      setResults([])
+    }
+  }, [supabase])
+
+  const handleResultClick = (result: typeof results[0]) => {
+    onMessageSelect(result.id, result.context)
+    setResults([]) // Clear results after selection
   }
 
-  useEffect(() => {
-    async function searchMessages() {
-      if (!debouncedSearch.trim()) {
-        setResults([])
-        return
-      }
-
-      const { context, contextId, searchText } = parseSearchContext(debouncedSearch)
-
-      try {
-        if (context === 'channel') {
-          const { data, error } = await supabase
-            .from('messages')
-            .select(`
-              *,
-              profiles (
-                id,
-                username,
-                avatar_url
-              ),
-              channels (
-                id,
-                name
-              )
-            `)
-            .eq(contextId ? 'channel_id' : '', contextId || '')
-            .ilike('content', `%${searchText}%`)
-            .order('created_at', { ascending: false })
-            .limit(5)
-
-          if (error) throw error
-          setResults(data || [])
-        } else if (context === 'conversation') {
-          const { data, error } = await supabase
-            .from('direct_messages')
-            .select(`
-              *,
-              sender:profiles!direct_messages_sender_id_fkey (
-                id,
-                username,
-                avatar_url
-              ),
-              conversation:conversations!inner (
-                id,
-                user1_id,
-                user2_id
-              )
-            `)
-            .eq(contextId ? 'conversation_id' : '', contextId || '')
-            .ilike('message', `%${searchText}%`)
-            .order('created_at', { ascending: false })
-            .limit(5)
-
-          if (error) throw error
-          setResults(data || [])
-        } else {
-          // Global search - combine results from both tables
-          const [messagesRes, directMessagesRes] = await Promise.all([
-            supabase
-              .from('messages')
-              .select(`
-                *,
-                profiles (
-                  id,
-                  username,
-                  avatar_url
-                ),
-                channels (
-                  id,
-                  name
-                )
-              `)
-              .ilike('content', `%${searchText}%`)
-              .order('created_at', { ascending: false })
-              .limit(5),
-            supabase
-              .from('direct_messages')
-              .select(`
-                *,
-                sender:profiles!direct_messages_sender_id_fkey (
-                  id,
-                  username,
-                  avatar_url
-                ),
-                conversation:conversations!inner (
-                  id,
-                  user1_id,
-                  user2_id
-                )
-              `)
-              .ilike('message', `%${searchText}%`)
-              .order('created_at', { ascending: false })
-              .limit(5)
-          ])
-
-          if (messagesRes.error) throw messagesRes.error
-          if (directMessagesRes.error) throw directMessagesRes.error
-
-          setResults([...messagesRes.data, ...directMessagesRes.data]
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-            .slice(0, 5))
+  return (
+    <div className="relative">
+      <SearchInput
+        channels={channels}
+        conversations={conversations}
+        currentContext={
+          channelId ? { type: 'channel', id: channelId } :
+          conversationId ? { type: 'conversation', id: conversationId } :
+          undefined
         }
-      } catch (error) {
-        console.error('Error searching messages:', error)
-      }
-    }
+        onSearch={handleSearch}
+      />
 
-    searchMessages()
-  }, [debouncedSearch, channelId, conversationId, channels, conversations, supabase])
+      {/* Results dropdown */}
+      {results.length > 0 && (
+        <div className="absolute w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto z-50">
+          {results.map(result => (
+            <button
+              key={result.id}
+              onClick={() => handleResultClick(result)}
+              className="block w-full text-left p-2 hover:bg-gray-100"
+            >
+              <div className="flex items-center text-sm text-gray-500">
+                {result.context.type === 'channel' ? (
+                  <span>#{result.channel}</span>
+                ) : (
+                  <span>@{result.user}</span>
+                )}
+                <span className="mx-2">·</span>
+                <span>{formatTimestamp(result.timestamp)}</span>
+              </div>
+              <div className="mt-1 text-sm">{result.content}</div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const formatTimestamp = (timestamp: string) => {
-    return new Date(timestamp).toLocaleString('en-US', {
+const formatTimestamp = (date: Date) => {
+  const now = new Date()
+  const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
+  
+  if (diffInHours < 24) {
+    return date.toLocaleString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    })
+  } else {
+    return date.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
       hour: 'numeric',
@@ -202,81 +192,4 @@ export default function SearchMessages({
       hour12: true
     })
   }
-
-  const getResultContext = (result: Message | DirectMessage): {
-    type: 'channel' | 'conversation'
-    id: string | number
-    name: string
-  } => {
-    const isChannelMessage = 'profiles' in result
-    if (isChannelMessage) {
-      return {
-        type: 'channel',
-        id: (result as Message).channel_id,
-        name: (result as Message).channels.name
-      }
-    }
-    return {
-      type: 'conversation',
-      id: (result as DirectMessage).conversation_id,
-      name: (result as DirectMessage).sender.username
-    }
-  }
-
-  const handleResultClick = (result: Message | DirectMessage) => {
-    const context = getResultContext(result)
-    onMessageSelect?.(result.id, context)
-    setIsOpen(false)
-  }
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <div className="flex items-center w-96 bg-gray-100 rounded-lg px-3 py-2">
-        <Search size={18} className="text-gray-400" />
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => {
-            setSearchTerm(e.target.value)
-            setIsOpen(true)
-          }}
-          placeholder="Search messages..."
-          className="w-full bg-transparent border-none focus:outline-none ml-2 text-sm"
-        />
-      </div>
-
-      {isOpen && results.length > 0 && (
-        <div className="absolute top-full mt-2 w-full bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto z-50">
-          {results.map((result) => {
-            const isChannelMessage = 'profiles' in result
-            const message = isChannelMessage ? result.content : result.message
-            const user = isChannelMessage ? result.profiles : result.sender
-            const context = getResultContext(result)
-
-            return (
-              <button
-                key={result.id}
-                onClick={() => handleResultClick(result)}
-                className="w-full text-left p-2 hover:bg-gray-100"
-              >
-                <div className="flex items-center space-x-2 mb-1">
-                  <span className="font-medium text-sm">{user.username}</span>
-                  <span className="text-xs text-gray-500">
-                    {formatTimestamp(result.created_at)}
-                  </span>
-                  <span className="text-xs text-gray-400">
-                    {context.type === 'channel' ? 
-                      `#${context.name}` : 
-                      `@${context.name}`
-                    }
-                  </span>
-                </div>
-                <p className="text-sm text-gray-700 line-clamp-2">{message}</p>
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-} 
+}

@@ -1,7 +1,7 @@
 import type { User } from '@supabase/auth-helpers-nextjs'
 
 export interface Channel {
-  id: number
+  id: string | number
   name: string
   created_at: string
   created_by: string
@@ -40,12 +40,16 @@ export interface AuthUser extends User {
 }
 
 export interface Conversation {
-  id: number
+  id: string | number
   created_at: string
   updated_at: string
   user1_id: string
   user2_id: string
-  other_user: Profile // Will be joined from profiles table
+  other_user: {
+    id: string | number
+    username: string
+    avatar_url?: string
+  }
 }
 
 export interface DirectMessage {
