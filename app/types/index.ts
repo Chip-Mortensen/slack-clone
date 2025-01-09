@@ -32,7 +32,6 @@ export interface Profile {
   updated_at: string
 }
 
-// Add any other types you might need
 export interface AuthUser extends User {
   user_metadata: {
     username?: string
@@ -66,7 +65,7 @@ export interface DirectMessage {
   }
 }
 
-interface MessageReply {
+export interface MessageReply {
   id: number
   message_id: number
   user_id: string
@@ -78,19 +77,10 @@ interface MessageReply {
   reactions?: MessageReaction[]
 }
 
-interface ChatAreaProps {
+export interface ChatAreaProps {
   channels: Channel[]
   conversations: Conversation[]
   onChannelSelect: (channelId: string | number) => void
   onConversationSelect: (conversationId: string | number) => void
   initialLoadPromise?: Promise<void> | null
-}
-
-// Make sure all interfaces are properly exported
-export type { 
-  Channel,
-  Message,
-  Conversation,
-  DirectMessage,
-  Profile
 } 
