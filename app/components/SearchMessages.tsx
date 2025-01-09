@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useSupabase } from '../supabase-provider'
 import type { Channel, Conversation } from '@/app/types/models'
 import type { SearchToken } from '@/app/types/search'
@@ -34,7 +34,14 @@ interface DMResult {
   created_at: string
   conversation_id: number
   sender_id: string
-  profiles: {
+  conversations: {
+    user1_id: string
+    user2_id: string
+  }
+  sender: {
+    username: string
+  }
+  receiver: {
     username: string
   }
 }
@@ -58,8 +65,23 @@ export default function SearchMessages({
     timestamp: Date
   }>>([])
   const { supabase } = useSupabase()
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setCurrentUserId(user?.id || null)
+    }
+    getCurrentUser()
+  }, [supabase])
 
   const handleSearch = useCallback(async (tokens: SearchToken[]) => {
+    // Get current user ID if we don't have it yet
+    if (!currentUserId) {
+      const { data: { user } } = await supabase.auth.getUser()
+      setCurrentUserId(user?.id || null)
+    }
+
     console.log('Search triggered with tokens:', tokens)
     
     // No search if we only have context tokens
@@ -120,7 +142,14 @@ export default function SearchMessages({
             created_at,
             conversation_id,
             sender_id,
-            profiles!direct_messages_sender_id_fkey (
+            conversations!inner (
+              user1_id,
+              user2_id
+            ),
+            sender:profiles!direct_messages_sender_id_fkey (
+              username
+            ),
+            receiver:profiles!direct_messages_receiver_id_fkey (
               username
             )
           `)
@@ -149,7 +178,7 @@ export default function SearchMessages({
       })
         .map(result => {
           const isDirectMessage = 'message' in result
-          console.log('Processing result:', result)
+          const isSender = isDirectMessage && result.sender_id === currentUserId
 
           const mappedResult = {
             id: result.id,
@@ -159,11 +188,14 @@ export default function SearchMessages({
               id: isDirectMessage ? result.conversation_id : result.channel_id
             },
             channel: !isDirectMessage ? result.channels?.name : undefined,
-            user: result.profiles?.username || 'Unknown',
+            user: isDirectMessage 
+              ? `${result.sender_id === currentUserId 
+                  ? result.receiver?.username 
+                  : result.sender?.username || 'Unknown'}${isSender ? ' (me)' : ''}`
+              : (result.profiles?.username || 'Unknown'),
             timestamp: new Date(result.created_at)
           }
           
-          console.log('Mapped result:', mappedResult)
           return mappedResult
         })
         .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
@@ -173,7 +205,7 @@ export default function SearchMessages({
       console.error('Search error:', error)
       setResults([])
     }
-  }, [supabase])
+  }, [supabase, currentUserId])
 
   const handleResultClick = (result: typeof results[0]) => {
     onMessageSelect(result.id, result.context)
