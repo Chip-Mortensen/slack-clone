@@ -4,10 +4,16 @@ import { useEffect } from 'react'
 import { useSupabase } from '../supabase-provider'
 import { RealtimeChannel } from '@supabase/supabase-js'
 
-export function usePresence() {
+interface PresenceState {
+  presence_ref: string
+  user_id: string
+}
+
+export function usePresence(userId?: string | null) {
   const { supabase } = useSupabase()
 
   useEffect(() => {
+    if (!userId) return
     let presenceChannel: RealtimeChannel
 
     const setupPresence = async () => {
@@ -70,7 +76,7 @@ export function usePresence() {
 
     return () => {
       if (presenceChannel) {
-        const userId = presenceChannel.presenceState()?.[0]?.user_id
+        const userId = (Object.values(presenceChannel.presenceState() || {})[0]?.[0] as PresenceState | undefined)?.user_id
         if (userId) {
           updatePresence(userId, false).then(() => {
             presenceChannel.unsubscribe()
@@ -78,5 +84,5 @@ export function usePresence() {
         }
       }
     }
-  }, [supabase])
+  }, [supabase, userId])
 } 

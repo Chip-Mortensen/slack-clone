@@ -11,13 +11,19 @@ interface StartConversationModalProps {
   onClose: () => void
 }
 
+interface SearchUser {
+  id: string
+  username: string
+  avatar_url: string | null
+}
+
 export default function StartConversationModal({
   isOpen,
   onClose,
 }: StartConversationModalProps) {
   const { supabase } = useSupabase()
   const [searchTerm, setSearchTerm] = useState('')
-  const [users, setUsers] = useState<Profile[]>([])
+  const [users, setUsers] = useState<SearchUser[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

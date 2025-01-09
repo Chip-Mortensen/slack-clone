@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { useSupabase } from '../supabase-provider'
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
 type UserStatus = {
   userId: string
@@ -15,9 +16,10 @@ type UserStatusContextType = {
 
 const UserStatusContext = createContext<UserStatusContextType | null>(null)
 
-type StatusPayload = {
-  new: { user_id: string } | null
-  old: { user_id: string } | null
+interface StatusRow {
+  user_id: string
+  status_type: string
+  expires_at: string
 }
 
 export function UserStatusProvider({ children }: { children: React.ReactNode }) {
@@ -67,17 +69,18 @@ export function UserStatusProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     const channel = supabase
       .channel('user_statuses')
-      .on(
-        'postgres_changes',
+      .on<StatusRow>(
+        'postgres_changes' as const,
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'user_statuses'
+          table: 'user_status'
         },
-        async (payload: StatusPayload) => {
-          if (payload.new?.user_id) {
-            setActiveUserIds(prev => new Set(prev).add(payload.new!.user_id))
-            await refreshStatus(payload.new.user_id)
+        (payload: RealtimePostgresChangesPayload<StatusRow>) => {
+          const newStatus = payload.new as StatusRow
+          if (newStatus?.user_id) {
+            setActiveUserIds(prev => new Set(prev).add(newStatus.user_id))
+            refreshStatus(newStatus.user_id)
           }
         }
       )

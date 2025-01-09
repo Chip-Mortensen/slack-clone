@@ -1,7 +1,7 @@
 'use client'
 
 import { Hash, MessageSquare, Search } from 'lucide-react'
-import type { Channel, Message, Conversation, DirectMessage } from '@/app/types'
+import type { Channel, Message, Conversation, DirectMessage } from '@/app/types/models'
 import MessageList from './MessageList'
 import MessageInput from './MessageInput'
 import UserAvatar from './UserAvatar'
@@ -47,7 +47,7 @@ export default function ChatArea({
   const [contextSwitchSource, setContextSwitchSource] = useState<'search' | 'navigation'>('navigation')
   const searchModeRef = useRef(false)
   const [isSearching, setIsSearching] = useState(false)
-  const searchCompleteRef = useRef<NodeJS.Timeout>()
+  const searchCompleteRef = useRef<NodeJS.Timeout | null>(null)
   const messagesRef = useRef<(Message | DirectMessage)[]>([])
 
   // Keep messagesRef in sync

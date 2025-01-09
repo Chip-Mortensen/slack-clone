@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useSupabase } from '../supabase-provider'
 import { X } from 'lucide-react'
-import type { Message, MessageReply } from '@/app/types'
+import type { Message, MessageReply } from '@/app/types/models'
 import MessageInput from './MessageInput'
 import MessageContent from './MessageContent'
 import UserAvatar from './UserAvatar'
@@ -237,7 +237,7 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
     }
   }
 
-  const handleRemoveReaction = async (reactionId: number) => {
+  const handleRemoveReaction = async (reactionId: string | number) => {
     try {
       const { error } = await supabase
         .from('message_reactions')

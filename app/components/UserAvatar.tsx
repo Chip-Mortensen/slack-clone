@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSupabase } from '../supabase-provider'
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { useUserStatus } from '../contexts/UserStatusContext'
 
 const STATUS_EMOJIS = {
@@ -10,11 +11,11 @@ const STATUS_EMOJIS = {
 } as const
 
 interface UserAvatarProps {
-  userId: string
-  avatarUrl: string | null
+  userId: string | number
   username: string
+  avatarUrl?: string | null
   size?: 'sm' | 'md' | 'lg'
-  showPresence?: boolean
+  showStatus?: boolean
 }
 
 interface UserPresence {
@@ -22,18 +23,22 @@ interface UserPresence {
   last_seen: string
 }
 
-export default function UserAvatar({ 
-  userId, 
-  avatarUrl, 
+interface PresenceRow {
+  is_online: boolean
+}
+
+export default function UserAvatar({
+  userId,
   username,
+  avatarUrl,
   size = 'md',
-  showPresence = true 
+  showStatus = false
 }: UserAvatarProps) {
   const { supabase } = useSupabase()
   const [isOnline, setIsOnline] = useState(false)
 
   useEffect(() => {
-    if (!showPresence) return
+    if (!showStatus) return
 
     // Get initial presence state
     const getPresence = async () => {
@@ -43,7 +48,9 @@ export default function UserAvatar({
         .eq('user_id', userId)
         .single()
       
-      setIsOnline(data?.is_online || false)
+      if (data && typeof data === 'object' && 'is_online' in data) {
+        setIsOnline((data as PresenceRow).is_online)
+      }
     }
 
     getPresence()
@@ -51,7 +58,7 @@ export default function UserAvatar({
     // Subscribe to presence changes
     const channel = supabase
       .channel('presence-changes')
-      .on(
+      .on<PresenceRow>(
         'postgres_changes',
         {
           event: '*',
@@ -59,8 +66,10 @@ export default function UserAvatar({
           table: 'user_presence',
           filter: `user_id=eq.${userId}`
         },
-        (payload) => {
-          setIsOnline(payload.new.is_online)
+        (payload: RealtimePostgresChangesPayload<PresenceRow>) => {
+          if (payload.new && 'is_online' in payload.new) {
+            setIsOnline(payload.new.is_online)
+          }
         }
       )
       .subscribe()
@@ -68,7 +77,7 @@ export default function UserAvatar({
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [supabase, userId, showPresence])
+  }, [supabase, userId, showStatus])
 
   const sizeClasses = {
     sm: 'w-6 h-6',
@@ -103,7 +112,7 @@ export default function UserAvatar({
           />
         )}
       </div>
-      {showPresence && (
+      {showStatus && (
         <div 
           className={`
             absolute bottom-0 right-0

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { useSupabase } from '../supabase-provider'
-import type { Channel, Conversation } from '@/app/types'
+import type { Channel, Conversation } from '@/app/types/models'
 import type { SearchToken } from '@/app/types/search'
 import SearchInput from './SearchInput'
 
@@ -12,6 +12,23 @@ interface SearchMessagesProps {
   onMessageSelect: (messageId: string | number, context: { type: 'channel' | 'conversation', id: string | number }) => void
   channels: Channel[]
   conversations: Conversation[]
+}
+
+interface ChannelResult {
+  id: number
+  content: string
+  created_at: string
+  channel_id: number
+  profiles: { username: string }[]
+  channels: { name: string }[]
+}
+
+interface DMResult {
+  id: number
+  message: string
+  created_at: string
+  conversation_id: number
+  sender: { username: string }[]
 }
 
 export default function SearchMessages({ 
@@ -107,16 +124,16 @@ export default function SearchMessages({
         throw errors[0]
       }
 
-      const allResults = responses.flatMap(r => r.data || [])
+      const allResults = responses.flatMap(r => (r.data || []) as (ChannelResult | DMResult)[])
         .map(result => ({
           id: result.id,
           content: 'message' in result ? result.message : result.content,
           context: {
-            type: 'message' in result ? 'conversation' : 'channel',
+            type: ('message' in result ? 'conversation' : 'channel') as 'channel' | 'conversation',
             id: 'conversation_id' in result ? result.conversation_id : result.channel_id
           },
-          channel: 'channels' in result ? result.channels.name : undefined,
-          user: 'profiles' in result ? result.profiles.username : result.sender.username,
+          channel: 'channels' in result ? result.channels[0].name : undefined,
+          user: 'profiles' in result ? result.profiles[0].username : result.sender[0].username,
           timestamp: new Date(result.created_at)
         }))
         .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())

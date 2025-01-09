@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSupabase } from '../supabase-provider'
 import type { DirectMessage, Conversation } from '@/app/types'
 
@@ -8,6 +8,7 @@ export function useDirectMessageChat(conversation: Conversation | null) {
   const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(true)
   const PAGE_SIZE = 20
+  const initialLoadPromiseRef = useRef<Promise<void> | null>(null)
 
   // Function to fetch messages
   const fetchMessages = async (lastTimestamp?: string) => {
@@ -187,6 +188,7 @@ export function useDirectMessageChat(conversation: Conversation | null) {
         console.error('Error sending message:', error)
         throw error
       }
-    }
+    },
+    initialLoadPromise: initialLoadPromiseRef.current
   }
 } 

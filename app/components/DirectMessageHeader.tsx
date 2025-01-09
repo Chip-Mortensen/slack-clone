@@ -1,7 +1,7 @@
 'use client'
 
 import UserAvatar from './UserAvatar'
-import type { Conversation } from '@/app/types'
+import type { Conversation } from '@/app/types/models'
 
 interface DirectMessageHeaderProps {
   conversation: Conversation

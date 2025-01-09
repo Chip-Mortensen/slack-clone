@@ -15,7 +15,8 @@ interface Reaction {
 
 interface MessageReactionsProps {
   messageId: string | number
-  isDirectMessage: boolean
+  isDirectMessage?: boolean
+  isReply?: boolean
   reactions: Reaction[]
   currentUserId: string
   onAddReaction: (emoji: string) => Promise<void>

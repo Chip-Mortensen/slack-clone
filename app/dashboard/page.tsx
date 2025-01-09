@@ -16,9 +16,8 @@ import { useDirectMessageChat } from '../hooks/useDirectMessageChat'
 import ConfirmationModal from '../components/ConfirmationModal'
 import EditProfileModal from '../components/EditProfileModal'
 import { usePresence } from '../hooks/usePresence'
-
-// Add a new type for context switch source
-type ContextSwitchSource = 'search' | 'navigation'
+import type { Channel, Conversation, Profile } from '@/app/types/models'
+import type { ContextSwitchSource } from '@/app/types/props'
 
 export default function Dashboard() {
   const router = useRouter()
@@ -235,8 +234,8 @@ export default function Dashboard() {
       }
 
       if (deleteTarget.type === 'channel') {
-        // First check if user owns the channel
-        if (deleteTarget.item.created_by !== currentUser.id) {
+        const channel = deleteTarget.item as Channel
+        if (channel.created_by !== currentUser.id) {
           console.error('Cannot delete channel: User is not the owner')
           return
         }
@@ -313,24 +312,23 @@ export default function Dashboard() {
     type: 'channel' | 'conversation',
     id: string | number,
     source: ContextSwitchSource = 'navigation'
-  ) => {
+  ): Promise<{ promise?: Promise<void> | undefined, source?: ContextSwitchSource }> => {
     if (type === 'channel') {
       const channel = channels.find(c => c.id === id)
       if (channel) {
         setCurrentChannel(channel)
         setCurrentConversation(null)
-        // Pass the source to the messages hook
-        return { promise: channelLoadPromise, source }
+        return { promise: channelLoadPromise || undefined, source }
       }
     } else {
       const conversation = conversations.find(c => c.id === id)
       if (conversation) {
         setCurrentConversation(conversation)
         setCurrentChannel(null)
-        return { promise: directMessageLoadPromise, source }
+        return { promise: directMessageLoadPromise || undefined, source }
       }
     }
-    return null
+    return {}
   }
 
   const handleChannelSelect = (channelId: string | number, source: ContextSwitchSource = 'navigation') => {

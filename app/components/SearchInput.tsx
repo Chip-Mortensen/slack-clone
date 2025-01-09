@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Search } from 'lucide-react'
 import type { SearchToken, SearchSuggestion } from '@/app/types/search'
-import type { Channel, Conversation } from '@/app/types'
+import type { Channel, Conversation } from '@/app/types/models'
 import { useDebounce } from '@/app/hooks/useDebounce'
 
 interface SearchInputProps {
@@ -42,7 +42,7 @@ export default function SearchInput({ channels, conversations, currentContext, o
       setTokens(currentTokens => {
         const currentContextToken = currentTokens.find(t => t.type === 'channel' || t.type === 'user')
         if (!currentTokens.length || (currentContextToken && currentContextToken.id !== contextToken.id)) {
-          return [contextToken]
+          return [contextToken as SearchToken]
         }
         return currentTokens
       })
@@ -62,7 +62,7 @@ export default function SearchInput({ channels, conversations, currentContext, o
           channel.name.toLowerCase().includes(searchTerm)
         )
         .map(channel => ({
-          type: 'channel',
+          type: 'channel' as const,
           id: channel.id,
           displayValue: channel.name,
           searchValue: channel.name.toLowerCase()
@@ -75,7 +75,7 @@ export default function SearchInput({ channels, conversations, currentContext, o
           conv.other_user.username.toLowerCase().includes(searchTerm)
         )
         .map(conv => ({
-          type: 'user',
+          type: 'user' as const,
           id: conv.id,
           displayValue: conv.other_user.username,
           searchValue: conv.other_user.username.toLowerCase()
@@ -115,7 +115,10 @@ export default function SearchInput({ channels, conversations, currentContext, o
       if (value) {
         const newTokens = [
           ...tokens,
-          { type: 'text', value }
+          { 
+            type: 'text' as const, 
+            value: inputValue 
+          } as SearchToken
         ]
         debouncedSearch(newTokens)
       } else {
@@ -129,11 +132,11 @@ export default function SearchInput({ channels, conversations, currentContext, o
     if (suggestionType) {
       if (suggestion) {
         const newTokens = [...tokens, {
-          type: suggestionType === 'channel' ? 'channel' : 'user',
+          type: suggestionType,
           id: suggestion.id,
           value: suggestion.searchValue,
           displayValue: suggestion.displayValue
-        }]
+        } as SearchToken]
         setTokens(newTokens)
         onSearch(newTokens)
       }
@@ -141,10 +144,13 @@ export default function SearchInput({ channels, conversations, currentContext, o
       setSuggestionType(null)
       setShowSuggestions(false)
     } else if (inputValue) {
-      const newTokens = [...tokens, {
-        type: 'text',
-        value: inputValue
-      }]
+      const newTokens = [
+        ...tokens,
+        { 
+          type: 'text' as const, 
+          value: inputValue 
+        } as SearchToken
+      ]
       setTokens(newTokens)
       setInputValue('')
       onSearch(newTokens)

@@ -86,7 +86,7 @@ export function useMessages(channelId: string | number | null) {
     
     if (channelId) {
       // Create a new promise for the initial load
-      initialLoadPromiseRef.current = fetchMessages()
+      initialLoadPromiseRef.current = fetchMessages().then(() => {})
     } else {
       initialLoadPromiseRef.current = null
     }

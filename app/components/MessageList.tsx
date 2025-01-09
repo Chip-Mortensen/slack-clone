@@ -1,6 +1,6 @@
 'use client'
 
-import type { Message, DirectMessage } from '@/app/types'
+import type { Message, DirectMessage } from '@/app/types/models'
 import MessageReactions from './MessageReactions'
 import UserAvatar from './UserAvatar'
 import { useSupabase } from '../supabase-provider'
@@ -15,7 +15,7 @@ interface MessageListProps {
   loading: boolean
   onReplyClick?: (message: Message) => void
   showThreads?: boolean
-  highlightedMessageId?: string | number
+  highlightedMessageId?: string | number | null
   switchSource?: 'search' | 'navigation'
   isSearching?: boolean
 }
