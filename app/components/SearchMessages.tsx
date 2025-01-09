@@ -19,8 +19,13 @@ interface ChannelResult {
   content: string
   created_at: string
   channel_id: number
-  profiles: { username: string }[]
-  channels: { name: string }[]
+  user_id: string
+  profiles: {
+    username: string
+  }
+  channels: {
+    name: string
+  }
 }
 
 interface DMResult {
@@ -28,7 +33,10 @@ interface DMResult {
   message: string
   created_at: string
   conversation_id: number
-  sender: { username: string }[]
+  sender_id: string
+  profiles: {
+    username: string
+  }
 }
 
 export default function SearchMessages({ 
@@ -85,8 +93,13 @@ export default function SearchMessages({
             content,
             created_at,
             channel_id,
-            profiles!inner(username),
-            channels!inner(name)
+            user_id,
+            profiles!messages_user_id_fkey (
+              username
+            ),
+            channels!messages_channel_id_fkey (
+              name
+            )
           `)
           .ilike('content', `%${searchTerms}%`)
 
@@ -105,8 +118,11 @@ export default function SearchMessages({
             id,
             message,
             created_at,
-            sender:sender_id(username),
-            conversation_id
+            conversation_id,
+            sender_id,
+            profiles!direct_messages_sender_id_fkey (
+              username
+            )
           `)
           .ilike('message', `%${searchTerms}%`)
 
@@ -124,18 +140,32 @@ export default function SearchMessages({
         throw errors[0]
       }
 
-      const allResults = responses.flatMap(r => (r.data || []) as (ChannelResult | DMResult)[])
-        .map(result => ({
-          id: result.id,
-          content: 'message' in result ? result.message : result.content,
-          context: {
-            type: ('message' in result ? 'conversation' : 'channel') as 'channel' | 'conversation',
-            id: 'conversation_id' in result ? result.conversation_id : result.channel_id
-          },
-          channel: 'channels' in result ? result.channels[0].name : undefined,
-          user: 'profiles' in result ? result.profiles[0].username : result.sender[0].username,
-          timestamp: new Date(result.created_at)
-        }))
+      console.log('Raw channel response:', responses[0]?.data)
+      console.log('Raw DM response:', responses[1]?.data)
+
+      const allResults = responses.flatMap(r => {
+        const data = r.data || []
+        return (data as unknown as (ChannelResult | DMResult)[])
+      })
+        .map(result => {
+          const isDirectMessage = 'message' in result
+          console.log('Processing result:', result)
+
+          const mappedResult = {
+            id: result.id,
+            content: isDirectMessage ? result.message : result.content,
+            context: {
+              type: (isDirectMessage ? 'conversation' : 'channel') as 'channel' | 'conversation',
+              id: isDirectMessage ? result.conversation_id : result.channel_id
+            },
+            channel: !isDirectMessage ? result.channels?.name : undefined,
+            user: result.profiles?.username || 'Unknown',
+            timestamp: new Date(result.created_at)
+          }
+          
+          console.log('Mapped result:', mappedResult)
+          return mappedResult
+        })
         .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
 
       setResults(allResults)

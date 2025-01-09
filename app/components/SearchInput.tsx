@@ -204,8 +204,8 @@ export default function SearchInput({ channels, conversations, currentContext, o
   }
 
   return (
-    <div className="relative flex-1 max-w-xl">
-      <div className="relative flex items-center bg-white border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500">
+    <div className="relative w-[480px]">
+      <div className="relative flex items-center bg-gray-100 border rounded-lg focus-within:ring-2 focus-within:ring-blue-500">
         <div className="absolute left-3 text-gray-400">
           <Search size={16} />
         </div>
@@ -236,7 +236,7 @@ export default function SearchInput({ channels, conversations, currentContext, o
             value={inputValue}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            className="flex-1 min-w-[200px] outline-none"
+            className="flex-1 min-w-[200px] outline-none bg-transparent"
             placeholder={tokens.length === 0 ? "Search messages..." : ""}
           />
         </div>
