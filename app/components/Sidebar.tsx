@@ -10,14 +10,14 @@ interface SidebarProps {
   user: User
   channels: Channel[]
   currentChannel: Channel | null
-  onChannelSelect: (channel: Channel) => void
+  onChannelSelect: (channelId: string | number, source?: 'search' | 'navigation') => void
   onCreateChannel: () => void
   onSignOut: () => Promise<void>
   signOutLoading: boolean
   sidebarOpen: boolean
   conversations: Conversation[]
   currentConversation: Conversation | null
-  onConversationSelect: (conversation: Conversation) => void
+  onConversationSelect: (conversationId: string | number, source?: 'search' | 'navigation') => void
   onStartConversation: () => void
   onDeleteChannel: (channel: Channel) => Promise<void>
   onDeleteConversation: (conversation: Conversation) => Promise<void>
@@ -44,6 +44,14 @@ export default function Sidebar({
   onEditProfile
 }: SidebarProps) {
   const router = useRouter()
+
+  const handleChannelClick = (channelId: string | number) => {
+    onChannelSelect(channelId, 'navigation')
+  }
+
+  const handleConversationClick = (conversationId: string | number) => {
+    onConversationSelect(conversationId, 'navigation')
+  }
 
   return (
     <div className={`
@@ -84,7 +92,7 @@ export default function Sidebar({
                   `}
                 >
                   <button
-                    onClick={() => onChannelSelect(channel)}
+                    onClick={() => handleChannelClick(channel.id)}
                     className="flex items-center flex-1 px-2 py-1 text-gray-300"
                   >
                     <Hash size={18} className="mr-2" />
@@ -132,7 +140,7 @@ export default function Sidebar({
                 `}
               >
                 <button
-                  onClick={() => onConversationSelect(conversation)}
+                  onClick={() => handleConversationClick(conversation.id)}
                   className="flex items-center flex-1 px-2 py-1 text-gray-300"
                 >
                   <div className="flex items-center">

@@ -7,7 +7,7 @@ import MessageInput from './MessageInput'
 import UserAvatar from './UserAvatar'
 import SearchMessages from './SearchMessages'
 import ThreadSidebar from './ThreadSidebar'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
 interface ChatAreaProps {
   currentChannel: Channel | null
@@ -24,6 +24,8 @@ interface ChatAreaProps {
   channels: Channel[]
   conversations: Conversation[]
   initialLoadPromise?: Promise<void> | null
+  navigationSource: 'sidebar' | 'search' | null
+  setNavigationSource: (source: 'sidebar' | 'search' | null) => void
 }
 
 export default function ChatArea({
@@ -40,7 +42,9 @@ export default function ChatArea({
   onConversationSelect,
   channels,
   conversations,
-  initialLoadPromise
+  initialLoadPromise,
+  navigationSource,
+  setNavigationSource
 }: ChatAreaProps) {
   const [parentMessage, setParentMessage] = useState<Message | null>(null)
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | number | null>(null)
@@ -49,6 +53,8 @@ export default function ChatArea({
   const [isSearching, setIsSearching] = useState(false)
   const searchCompleteRef = useRef<NodeJS.Timeout | null>(null)
   const messagesRef = useRef<(Message | DirectMessage)[]>([])
+  const preventAutoScroll = useRef(false)
+  const [isSearchNavigation, setIsSearchNavigation] = useState(false)
 
   // Keep messagesRef in sync
   useEffect(() => {
@@ -61,74 +67,44 @@ export default function ChatArea({
     setHighlightedMessageId(null) // Reset highlighted message when changing channels
   }, [currentChannel?.id, currentConversation?.id])
 
+  const handleSearchStateChange = useCallback((isSearching: boolean) => {
+    if (isSearching) {
+      setIsSearchNavigation(true)
+    }
+  }, [])
+
   const handleMessageSelect = async (messageId: string | number, context: {
     type: 'channel' | 'conversation'
     id: string | number
   }) => {
-    if (searchCompleteRef.current) {
-      clearTimeout(searchCompleteRef.current)
-    }
-    
+    setNavigationSource('search')
     setIsSearching(true)
-    
+    setIsSearchNavigation(true)
+    preventAutoScroll.current = true
+
     try {
       // Switch context if needed
-      if (context.type === 'channel' && (!currentChannel || currentChannel.id !== context.id)) {
+      if (context.type === 'channel') {
         const result = await onChannelSelect(context.id, 'search')
         if (result?.promise) {
           await result.promise
+          await new Promise(resolve => setTimeout(resolve, 500))
         }
-      } else if (context.type === 'conversation' && (!currentConversation || currentConversation.id !== context.id)) {
+      } else {
         const result = await onConversationSelect(context.id, 'search')
         if (result?.promise) {
           await result.promise
+          await new Promise(resolve => setTimeout(resolve, 500))
         }
       }
 
-      // Wait for initial messages to load
-      let waitAttempts = 0
-      while (waitAttempts < 20 && messagesRef.current.length === 0) {
-        await new Promise(resolve => setTimeout(resolve, 100))
-        waitAttempts++
-      }
-
-      // First check if message is in current batch
-      let messageFound = messagesRef.current.some(m => m.id === messageId)
-
-      // If not found and we have more messages, keep loading
-      if (!messageFound && hasMore) {
-        let loadAttempts = 0
-        while (!messageFound && hasMore && loadAttempts < 20) {
-          try {
-            await loadMore()
-            await new Promise(resolve => setTimeout(resolve, 300))
-            
-            // Check again after loading
-            messageFound = messagesRef.current.some(m => m.id === messageId)
-            loadAttempts++
-          } catch (error) {
-            console.error('Error loading more messages:', error)
-            break
-          }
-        }
-      }
-
-      if (messageFound) {
-        setHighlightedMessageId(messageId)
-        
-        // Clear highlight and search mode after delay
-        searchCompleteRef.current = setTimeout(() => {
-          setHighlightedMessageId(null)
-          setIsSearching(false)
-        }, 3000)
-      } else {
-        console.warn('Message not found after loading attempts:', messageId)
-        setIsSearching(false)
-        setHighlightedMessageId(null)
-      }
+      setHighlightedMessageId(messageId)
     } catch (error) {
-      console.error('Error in handleMessageSelect:', error)
+      setNavigationSource(null)
       setIsSearching(false)
+      setIsSearchNavigation(false)
+      setHighlightedMessageId(null)
+      preventAutoScroll.current = false
     }
   }
 
@@ -193,6 +169,62 @@ export default function ChatArea({
     }
   }, [])
 
+  // Update the user interaction handler
+  useEffect(() => {
+    const handleUserInteraction = (e: MouseEvent | KeyboardEvent | WheelEvent) => {
+      if (isSearching || isSearchNavigation) {
+        const chatArea = document.querySelector('.messages-container')
+        const searchArea = document.querySelector('.search-area')
+        
+        // Don't clear if interaction is within search area
+        if (searchArea?.contains(e.target as Node)) {
+          return
+        }
+
+        // Only clear search states if interaction is within chat area
+        if (chatArea?.contains(e.target as Node)) {
+          setIsSearching(false)
+          setHighlightedMessageId(null)
+          setIsSearchNavigation(false)
+          // Don't reset preventAutoScroll here
+        }
+      }
+    }
+
+    window.addEventListener('click', handleUserInteraction)
+    window.addEventListener('keydown', handleUserInteraction)
+    window.addEventListener('wheel', handleUserInteraction)
+
+    return () => {
+      window.removeEventListener('click', handleUserInteraction)
+      window.removeEventListener('keydown', handleUserInteraction)
+      window.removeEventListener('wheel', handleUserInteraction)
+    }
+  }, [isSearching, isSearchNavigation])
+
+  // Update the search navigation reset effect
+  useEffect(() => {
+    if (!isSearching && isSearchNavigation) {
+    }
+  }, [isSearching])
+
+  // Add effect to handle navigation source changes
+  useEffect(() => {
+  }, [navigationSource, isSearching, isSearchNavigation])
+
+  // Update the context change effect
+  useEffect(() => {
+    const contextId = currentChannel?.id || currentConversation?.id
+    if (contextId) {
+      if (navigationSource === 'sidebar') {
+        setIsSearching(false)
+        setIsSearchNavigation(false)
+        setHighlightedMessageId(null)
+        preventAutoScroll.current = false
+      }
+    }
+  }, [currentChannel?.id, currentConversation?.id, navigationSource])
+
   return (
     <div className="flex-1 flex">
       <div className="flex-1 flex flex-col">
@@ -204,6 +236,7 @@ export default function ChatArea({
             channelId={currentChannel?.id} 
             conversationId={currentConversation?.id}
             onMessageSelect={handleMessageSelect}
+            onSearchStateChange={handleSearchStateChange}
             channels={channels}
             conversations={conversations}
           />
@@ -217,7 +250,8 @@ export default function ChatArea({
           showThreads={!!currentChannel}
           onReplyClick={setParentMessage}
           highlightedMessageId={highlightedMessageId}
-          isSearching={isSearching}
+          isSearchNavigation={isSearchNavigation}
+          navigationSource={navigationSource}
         />
 
         <MessageInput

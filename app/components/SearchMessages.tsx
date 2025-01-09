@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSupabase } from '../supabase-provider'
 import type { Channel, Conversation } from '@/app/types/models'
 import type { SearchToken } from '@/app/types/search'
@@ -12,6 +12,7 @@ interface SearchMessagesProps {
   onMessageSelect: (messageId: string | number, context: { type: 'channel' | 'conversation', id: string | number }) => void
   channels: Channel[]
   conversations: Conversation[]
+  onSearchStateChange: (isSearching: boolean) => void
 }
 
 interface ChannelResult {
@@ -50,6 +51,7 @@ export default function SearchMessages({
   channelId, 
   conversationId, 
   onMessageSelect, 
+  onSearchStateChange,
   channels, 
   conversations 
 }: SearchMessagesProps) {
@@ -66,6 +68,7 @@ export default function SearchMessages({
   }>>([])
   const { supabase } = useSupabase()
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const isSearchMode = useRef(false)
 
   useEffect(() => {
     const getCurrentUser = async () => {
@@ -82,11 +85,8 @@ export default function SearchMessages({
       setCurrentUserId(user?.id || null)
     }
 
-    console.log('Search triggered with tokens:', tokens)
-    
     // No search if we only have context tokens
     if (!tokens.length || (tokens.length === 1 && tokens[0].type !== 'text')) {
-      console.log('No search - only context or no tokens')
       setResults([])
       return
     }
@@ -165,12 +165,8 @@ export default function SearchMessages({
       const responses = await Promise.all(promises)
       const errors = responses.filter(r => r.error).map(r => r.error)
       if (errors.length > 0) {
-        console.error('Search errors:', errors)
         throw errors[0]
       }
-
-      console.log('Raw channel response:', responses[0]?.data)
-      console.log('Raw DM response:', responses[1]?.data)
 
       const allResults = responses.flatMap(r => {
         const data = r.data || []
@@ -202,15 +198,21 @@ export default function SearchMessages({
 
       setResults(allResults)
     } catch (error) {
-      console.error('Search error:', error)
       setResults([])
     }
   }, [supabase, currentUserId])
 
   const handleResultClick = (result: typeof results[0]) => {
+    // Set search mode before navigation
+    onSearchStateChange(true)
     onMessageSelect(result.id, result.context)
-    setResults([]) // Clear results after selection
+    setResults([])
   }
+
+  // Clear search state when context changes
+  useEffect(() => {
+    onSearchStateChange(false)
+  }, [channelId, conversationId, onSearchStateChange])
 
   return (
     <div className="relative">

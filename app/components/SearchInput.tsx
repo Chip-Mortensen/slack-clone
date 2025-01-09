@@ -54,7 +54,6 @@ export default function SearchInput({ channels, conversations, currentContext, o
     if (!suggestionType || !inputValue) return []
 
     const searchTerm = inputValue.slice(1).toLowerCase()
-    console.log('Getting suggestions for:', { suggestionType, searchTerm })
     
     if (suggestionType === 'channel') {
       const channelSuggestions = channels
@@ -67,7 +66,6 @@ export default function SearchInput({ channels, conversations, currentContext, o
           displayValue: channel.name,
           searchValue: channel.name.toLowerCase()
         }))
-      console.log('Channel suggestions:', channelSuggestions)
       return channelSuggestions
     } else {
       const userSuggestions = conversations
@@ -80,7 +78,6 @@ export default function SearchInput({ channels, conversations, currentContext, o
           displayValue: conv.other_user.username,
           searchValue: conv.other_user.username.toLowerCase()
         }))
-      console.log('User suggestions:', userSuggestions)
       return userSuggestions
     }
   }
@@ -94,16 +91,13 @@ export default function SearchInput({ channels, conversations, currentContext, o
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
-    console.log('Input changed:', value)
     setInputValue(value)
 
     if (value.startsWith('#') && !suggestionType) {
-      console.log('Channel suggestions triggered')
       setSuggestionType('channel')
       setShowSuggestions(true)
       setSelectedSuggestionIndex(0)
     } else if (value.startsWith('@') && !suggestionType) {
-      console.log('User suggestions triggered')
       setSuggestionType('user')
       setShowSuggestions(true)
       setSelectedSuggestionIndex(0)
@@ -158,7 +152,6 @@ export default function SearchInput({ channels, conversations, currentContext, o
   }
 
   const removeToken = (index: number) => {
-    console.log('Removing token at index:', index)
     const tokenToRemove = tokens[index]
     
     // If removing a context token, mark it as manually removed
@@ -167,7 +160,6 @@ export default function SearchInput({ channels, conversations, currentContext, o
     }
     
     const newTokens = tokens.filter((_, i) => i !== index)
-    console.log('New tokens:', newTokens)
     setTokens(newTokens)
     onSearch(newTokens)
   }

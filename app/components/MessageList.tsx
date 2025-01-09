@@ -18,9 +18,11 @@ interface MessageListProps {
   highlightedMessageId?: string | number | null
   switchSource?: 'search' | 'navigation'
   isSearching?: boolean
+  isSearchNavigation?: boolean
+  navigationSource: 'sidebar' | 'search' | null
 }
 
-export default function MessageList({ messages, hasMore, loadMore, loading, onReplyClick, showThreads, highlightedMessageId, isSearching = false }: MessageListProps) {
+export default function MessageList({ messages, hasMore, loadMore, loading, onReplyClick, showThreads, highlightedMessageId, isSearching = false, isSearchNavigation = false, navigationSource }: MessageListProps) {
   const { supabase } = useSupabase()
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -33,9 +35,179 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
   const [highlightedMessage, setHighlightedMessage] = useState<string | number | null>(null)
   const isFirstRender = useRef(true)
   const preventAutoScroll = useRef(false)
+  const lastScrollPosition = useRef<number>(0)
 
   // Add a ref for the observer target
   const observerTarget = useRef<HTMLDivElement>(null)
+
+  // Add a new ref to track image loading
+  const pendingImageLoads = useRef(0)
+
+  // Add a new ref to track initial load
+  const initialLoadComplete = useRef(false)
+
+  // Add a new ref to track if we've done a search scroll
+  const hasSearchScrolled = useRef(false)
+
+  // Replace multiple scroll-related refs with a single scroll manager
+  const scrollManager = useRef({
+    targetMessageId: null as string | number | null,
+    isScrolling: false,
+    pendingImageLoads: 0,
+    hasInitiallyScrolled: false,
+    isLoadingMessages: false,
+    retryAttempts: 0,
+    maxRetries: 20
+  })
+
+  // Single source of truth for scroll behavior
+  const handleScrollBehavior = useCallback((target: 'bottom' | 'message', messageId?: string | number) => {
+    if (!containerRef.current) return
+    
+    const container = containerRef.current
+
+    if (target === 'bottom' && !isSearchNavigation) {
+      container.scrollTop = container.scrollHeight
+      return
+    }
+
+    if (target === 'message' && messageId) {
+      const messageElement = document.getElementById(`message-${messageId}`)
+      if (!messageElement) return
+
+      const containerHeight = container.clientHeight
+      const messageTop = messageElement.offsetTop
+      const scrollPosition = messageTop - (containerHeight / 3)
+
+      container.scrollTo({
+        top: scrollPosition,
+        behavior: 'smooth'
+      })
+
+      messageElement.classList.add('bg-yellow-100')
+      setTimeout(() => {
+        messageElement.classList.remove('bg-yellow-100')
+      }, 2000)
+    }
+  }, [navigationSource, isSearching, isSearchNavigation, loading])
+
+  // Add a reset function for all scroll states
+  const resetScrollStates = useCallback(() => {
+    scrollManager.current = {
+      ...scrollManager.current,
+      targetMessageId: null,
+      isScrolling: false,
+      hasInitiallyScrolled: false,
+      isLoadingMessages: false,
+      retryAttempts: 0
+    }
+    preventAutoScroll.current = false
+    hasSearchScrolled.current = false
+    isFirstRender.current = true
+    initialLoadComplete.current = false
+  }, [])
+
+  // Add effect to handle context changes
+  useEffect(() => {
+    if (navigationSource === 'sidebar') {
+      // Ensure we scroll to bottom after states are reset
+      setTimeout(() => {
+        handleScrollBehavior('bottom')
+      }, 100)
+    }
+  }, [navigationSource, resetScrollStates, handleScrollBehavior])
+
+  // Add a dedicated effect just for handling navigation source changes
+  useEffect(() => {
+    if (navigationSource === 'sidebar') {
+      // Force immediate scroll to bottom for sidebar navigation
+      if (containerRef.current) {
+        containerRef.current.scrollTop = containerRef.current.scrollHeight
+        
+        // Double-check the scroll position after a short delay
+        setTimeout(() => {
+          if (containerRef.current) {
+            containerRef.current.scrollTop = containerRef.current.scrollHeight
+          }
+        }, 100)
+      }
+    }
+  }, [navigationSource, messages.length])
+
+  // Update the main scroll effect to handle loading states and message loading
+  useEffect(() => {
+    if (!messages.length) return
+
+    const isNewMessage = messages.length > previousMessagesLength.current
+    previousMessagesLength.current = messages.length
+
+    // For search navigation, ensure we load all necessary messages
+    if (navigationSource === 'search' && highlightedMessageId) {
+      const messageElement = document.getElementById(`message-${highlightedMessageId}`)
+      
+      if (!messageElement && hasMore && !loading) {
+        loadMore()
+        return
+      }
+
+      // Only attempt scroll if we found the message or have no more messages to load
+      if (messageElement || !hasMore) {
+        handleScrollToHighlightedMessage(highlightedMessageId)
+      }
+    } else if (navigationSource === 'sidebar') {
+      handleScrollToBottom()
+    }
+  }, [messages, navigationSource, highlightedMessageId, loading, hasMore, loadMore])
+
+  // Separate the scroll logic into clear functions
+  const handleScrollToBottom = useCallback(() => {
+    if (!containerRef.current) return
+    containerRef.current.scrollTop = containerRef.current.scrollHeight
+  }, [])
+
+  const handleScrollToHighlightedMessage = useCallback((messageId: string | number) => {
+    if (!containerRef.current) return
+    
+    const scrollToMessage = () => {
+      const messageElement = document.getElementById(`message-${messageId}`)
+      if (messageElement) {
+        const container = containerRef.current!
+        const messageTop = messageElement.offsetTop - (container.clientHeight / 3)
+        
+        container.scrollTo({
+          top: messageTop,
+          behavior: 'smooth'
+        })
+
+        // Verify scroll position after animation
+        setTimeout(() => {
+          if (container.scrollTop !== messageTop) {
+            container.scrollTop = messageTop
+          }
+        }, 500)
+      } else if (hasMore && !loading) {
+        loadMore()
+        setTimeout(scrollToMessage, 500) // Try again after loading more
+      }
+    }
+
+    // Small delay to ensure DOM is ready
+    setTimeout(scrollToMessage, 50)
+  }, [hasMore, loading, loadMore])
+
+  // Image load handler
+  const handleImageLoadComplete = useCallback(() => {
+    scrollManager.current.pendingImageLoads--
+    if (scrollManager.current.pendingImageLoads === 0 && navigationSource === 'search' && scrollManager.current.targetMessageId) {
+      handleScrollBehavior('message', scrollManager.current.targetMessageId)
+    }
+  }, [navigationSource, handleScrollBehavior])
+
+  // Track image loads
+  useEffect(() => {
+    const images = document.querySelectorAll('.message-image')
+    scrollManager.current.pendingImageLoads = images.length
+  }, [messages])
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior })
@@ -47,29 +219,20 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
     const buffer = 100 // pixels from bottom to consider "near bottom"
     const isClose = scrollHeight - scrollTop - clientHeight < buffer
     setIsNearBottom(isClose)
-    setShouldAutoScroll(isClose) // Only auto-scroll for new messages if user is near bottom
+    setShouldAutoScroll(isClose)
   }
 
-  // Handle initial load and new messages
+  // Add a new effect to handle search state changes
   useEffect(() => {
-    const isNewMessage = messages.length > previousMessagesLength.current
-    previousMessagesLength.current = messages.length
-
-    // Don't scroll if we're preventing auto-scroll
-    if (preventAutoScroll.current) {
-      return
+    if (!isSearching && !isSearchNavigation) {
+      // Only reset search states when both search and navigation are done
+      const timer = setTimeout(() => {
+        hasSearchScrolled.current = false
+        preventAutoScroll.current = false
+      }, 1000)
+      return () => clearTimeout(timer)
     }
-
-    // Only scroll to bottom if not searching
-    if (!isSearching) {
-      if (isFirstRender.current && messages.length > 0) {
-        scrollToBottom('auto')
-        isFirstRender.current = false
-      } else if (shouldAutoScroll && isNewMessage) {
-        scrollToBottom('smooth')
-      }
-    }
-  }, [messages, shouldAutoScroll, isSearching])
+  }, [isSearching, isSearchNavigation])
 
   useEffect(() => {
     async function getCurrentUser() {
@@ -300,46 +463,83 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
     }, 200)
   }, [])
 
-  // Scroll to highlighted message when it changes
+  // Update the search scroll effect
   useEffect(() => {
     if (highlightedMessageId && isSearching) {
+      // Set all scroll prevention flags
       preventAutoScroll.current = true
-      const messageElement = document.getElementById(`message-${highlightedMessageId}`)
-      if (messageElement) {
-        messageElement.scrollIntoView({ 
-          behavior: 'auto',
-          block: 'center'
-        })
+      isFirstRender.current = false
+      initialLoadComplete.current = true
+      hasSearchScrolled.current = true
+
+      const scrollToHighlighted = () => {
+        const messageElement = document.getElementById(`message-${highlightedMessageId}`)
+        if (messageElement && containerRef.current) {
+          const container = containerRef.current
+          
+          const messageTop = messageElement.offsetTop - (container.clientHeight / 2)
+          
+          container.scrollTop = messageTop
+          
+          // Keep checking scroll position
+          const checkScroll = setInterval(() => {
+            if (container.scrollTop !== messageTop) {
+              container.scrollTop = messageTop
+            }
+          }, 100)
+
+          // Clear interval after 1 second
+          setTimeout(() => clearInterval(checkScroll), 1000)
+        } else {
+          setTimeout(scrollToHighlighted, 50)
+        }
+      }
+
+      scrollToHighlighted()
+
+      return () => {
       }
     }
   }, [highlightedMessageId, isSearching])
 
-  // Set preventAutoScroll when search starts
-  useEffect(() => {
-    if (isSearching) {
-      preventAutoScroll.current = true
-    } else {
-      // Add a small delay before re-enabling auto-scroll
-      setTimeout(() => {
-        preventAutoScroll.current = false
-      }, 1000)
-    }
-  }, [isSearching])
-
-  // Reset flags when changing channels
-  useEffect(() => {
-    if (messages.length === 0) {
-      isFirstRender.current = true
-      preventAutoScroll.current = false
-    }
-  }, [messages.length])
-
-  // Modify the MessageContent onImageLoad handler
+  // Modify the image load handler to respect search
   const handleImageLoad = () => {
-    if (isNearBottom && !isSearching && !preventAutoScroll.current) {
-      scrollToBottom()
+    if (!isSearching && !preventAutoScroll.current) {
+      pendingImageLoads.current = Math.max(0, pendingImageLoads.current - 1)
+      if (pendingImageLoads.current === 0 && (isNearBottom || isFirstRender.current)) {
+        scrollToBottom(isFirstRender.current ? 'auto' : 'smooth')
+      }
     }
   }
+
+  // Handle highlighted message scrolling
+  useEffect(() => {
+    if (highlightedMessageId && isSearchNavigation) {
+      const scrollToHighlighted = () => {
+        const messageElement = document.getElementById(`message-${highlightedMessageId}`)
+        if (messageElement && containerRef.current) {
+          const container = containerRef.current
+          const messageTop = messageElement.offsetTop - (container.clientHeight / 2)
+          
+          container.scrollTop = messageTop
+          lastScrollPosition.current = messageTop
+
+          // Maintain scroll position
+          const checkScroll = setInterval(() => {
+            if (container.scrollTop !== messageTop && isSearchNavigation) {
+              container.scrollTop = messageTop
+            }
+          }, 100)
+
+          setTimeout(() => clearInterval(checkScroll), 1000)
+        } else {
+          setTimeout(scrollToHighlighted, 50)
+        }
+      }
+
+      scrollToHighlighted()
+    }
+  }, [highlightedMessageId, isSearchNavigation])
 
   return (
     <div 
@@ -406,7 +606,7 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
                   content={content}
                   fileUrl={fileUrl}
                   fileName={fileName}
-                  onImageLoad={handleImageLoad}
+                  onImageLoad={handleImageLoadComplete}
                 />
                 <div className="flex items-center gap-1">
                   {currentUserId && (

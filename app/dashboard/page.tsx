@@ -35,6 +35,7 @@ export default function Dashboard() {
   } | null>(null)
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [navigationSource, setNavigationSource] = useState<'sidebar' | 'search' | null>(null)
 
   // Add usePresence here, it will only be active when user exists
   usePresence(user?.id)
@@ -331,11 +332,13 @@ export default function Dashboard() {
     return {}
   }
 
-  const handleChannelSelect = (channelId: string | number, source: ContextSwitchSource = 'navigation') => {
+  const handleChannelSelect = async (channelId: string | number, source?: 'search' | 'navigation') => {
+    setNavigationSource(source === 'search' ? 'search' : 'sidebar')
     return handleContextSwitch('channel', channelId, source)
   }
 
-  const handleConversationSelect = (conversationId: string | number, source: ContextSwitchSource = 'navigation') => {
+  const handleConversationSelect = async (conversationId: string | number, source?: 'search' | 'navigation') => {
+    setNavigationSource(source === 'search' ? 'search' : 'sidebar')
     return handleContextSwitch('conversation', conversationId, source)
   }
 
@@ -370,14 +373,14 @@ export default function Dashboard() {
         user={user}
         channels={channels}
         currentChannel={currentChannel}
-        onChannelSelect={setCurrentChannel}
+        onChannelSelect={handleChannelSelect}
         onCreateChannel={() => setIsCreateChannelModalOpen(true)}
         onSignOut={handleSignOut}
         signOutLoading={signOutLoading}
         sidebarOpen={sidebarOpen}
         conversations={conversations || []}
         currentConversation={currentConversation}
-        onConversationSelect={setCurrentConversation}
+        onConversationSelect={handleConversationSelect}
         onStartConversation={() => setIsStartConversationModalOpen(true)}
         onDeleteChannel={handleDeleteChannel}
         onDeleteConversation={handleDeleteConversation}
@@ -400,6 +403,8 @@ export default function Dashboard() {
         channels={channels}
         conversations={conversations}
         initialLoadPromise={initialLoadPromise}
+        navigationSource={navigationSource}
+        setNavigationSource={setNavigationSource}
       />
 
       <CreateChannelModal
