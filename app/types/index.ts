@@ -84,4 +84,13 @@ interface ChatAreaProps {
   onChannelSelect: (channelId: string | number) => void
   onConversationSelect: (conversationId: string | number) => void
   initialLoadPromise?: Promise<void> | null
+}
+
+// Make sure all interfaces are properly exported
+export type { 
+  Channel,
+  Message,
+  Conversation,
+  DirectMessage,
+  Profile
 } 
