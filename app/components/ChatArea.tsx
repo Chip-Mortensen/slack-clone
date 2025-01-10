@@ -26,6 +26,7 @@ interface ChatAreaProps {
   initialLoadPromise?: Promise<void> | null
   navigationSource: 'sidebar' | 'search' | null
   setNavigationSource: (source: 'sidebar' | 'search' | null) => void
+  onlineUsers?: string[]
 }
 
 export default function ChatArea({
@@ -44,7 +45,8 @@ export default function ChatArea({
   conversations,
   initialLoadPromise,
   navigationSource,
-  setNavigationSource
+  setNavigationSource,
+  onlineUsers = []
 }: ChatAreaProps) {
   const [parentMessage, setParentMessage] = useState<Message | null>(null)
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | number | null>(null)
@@ -146,13 +148,15 @@ export default function ChatArea({
           <div className="flex items-center">
             <UserAvatar
               userId={currentConversation.other_user.id}
-              avatarUrl={currentConversation.other_user.avatar_url}
               username={currentConversation.other_user.username}
+              avatarUrl={currentConversation.other_user.avatar_url}
               size="md"
+              showStatus={true}
+              online={onlineUsers.includes(String(currentConversation.other_user.id))}
             />
-            <h2 className="text-lg font-medium ml-2">
+            <span className="ml-2 font-medium">
               {currentConversation.other_user.username}
-            </h2>
+            </span>
           </div>
         </>
       )
@@ -252,6 +256,7 @@ export default function ChatArea({
           highlightedMessageId={highlightedMessageId}
           isSearchNavigation={isSearchNavigation}
           navigationSource={navigationSource}
+          onlineUsers={onlineUsers}
         />
 
         <MessageInput

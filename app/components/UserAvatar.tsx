@@ -16,6 +16,7 @@ interface UserAvatarProps {
   avatarUrl?: string | null
   size?: 'sm' | 'md' | 'lg'
   showStatus?: boolean
+  online?: boolean
 }
 
 interface UserPresence {
@@ -32,52 +33,10 @@ export default function UserAvatar({
   username,
   avatarUrl,
   size = 'md',
-  showStatus = false
+  showStatus = false,
+  online = false
 }: UserAvatarProps) {
   const { supabase } = useSupabase()
-  const [isOnline, setIsOnline] = useState(false)
-
-  useEffect(() => {
-    if (!showStatus) return
-
-    // Get initial presence state
-    const getPresence = async () => {
-      const { data } = await supabase
-        .from('user_presence')
-        .select('is_online')
-        .eq('user_id', userId)
-        .single()
-      
-      if (data && typeof data === 'object' && 'is_online' in data) {
-        setIsOnline((data as PresenceRow).is_online)
-      }
-    }
-
-    getPresence()
-
-    // Subscribe to presence changes
-    const channel = supabase
-      .channel('presence-changes')
-      .on<PresenceRow>(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'user_presence',
-          filter: `user_id=eq.${userId}`
-        },
-        (payload: RealtimePostgresChangesPayload<PresenceRow>) => {
-          if (payload.new && 'is_online' in payload.new) {
-            setIsOnline(payload.new.is_online)
-          }
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [supabase, userId, showStatus])
 
   const sizeClasses = {
     sm: 'w-6 h-6',
@@ -85,16 +44,10 @@ export default function UserAvatar({
     lg: 'w-12 h-12'
   }
 
-  const statusSizeClasses = {
-    sm: 'text-[10px] translate-y-[-50%]',
-    md: 'text-xs translate-y-[-50%]',
-    lg: 'text-sm translate-y-[-50%]'
-  }
-
   const presenceDotClasses = {
-    sm: 'w-2 h-2 border translate-x-1/3 translate-y-1/3',
-    md: 'w-2.5 h-2.5 border-2 translate-x-1/3 translate-y-1/3',
-    lg: 'w-3 h-3 border-2 translate-x-1/3 translate-y-1/3'
+    sm: 'w-2 h-2 border',
+    md: 'w-2.5 h-2.5 border-2',
+    lg: 'w-3 h-3 border-2'
   }
 
   return (
@@ -118,14 +71,23 @@ export default function UserAvatar({
             absolute bottom-0 right-0
             ${presenceDotClasses[size]}
             rounded-full
-            ${isOnline
+            ${online 
               ? 'bg-green-500 border-white' 
               : 'bg-white border-green-500'
             }
+            z-10
+            shadow-sm
           `}
-          title={isOnline ? 'Online' : 'Offline'}
+          style={{
+            outline: '1px solid rgba(0,0,0,0.1)',
+            transform: 'translate(25%, 25%)'
+          }}
+          title={online ? 'Online' : 'Offline'}
         />
       )}
+      <div className="sr-only">
+        Status: {online ? 'online' : 'offline'} for user {userId}
+      </div>
     </div>
   )
 } 

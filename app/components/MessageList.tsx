@@ -20,9 +20,10 @@ interface MessageListProps {
   isSearching?: boolean
   isSearchNavigation?: boolean
   navigationSource: 'sidebar' | 'search' | null
+  onlineUsers?: string[]
 }
 
-export default function MessageList({ messages, hasMore, loadMore, loading, onReplyClick, showThreads, highlightedMessageId, isSearching = false, isSearchNavigation = false, navigationSource }: MessageListProps) {
+export default function MessageList({ messages, hasMore, loadMore, loading, onReplyClick, showThreads, highlightedMessageId, isSearching = false, isSearchNavigation = false, navigationSource, onlineUsers = [] }: MessageListProps) {
   const { supabase } = useSupabase()
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -592,6 +593,8 @@ export default function MessageList({ messages, hasMore, loadMore, loading, onRe
                 avatarUrl={avatarUrl}
                 username={username}
                 size="lg"
+                showStatus={true}
+                online={onlineUsers?.includes(userId) || false}
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center space-x-2">

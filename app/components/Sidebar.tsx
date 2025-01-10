@@ -23,6 +23,7 @@ interface SidebarProps {
   onDeleteConversation: (conversation: Conversation) => Promise<void>
   profile: Profile | null
   onEditProfile: () => void
+  onlineUsers?: string[]
 }
 
 export default function Sidebar({
@@ -41,7 +42,8 @@ export default function Sidebar({
   onDeleteChannel,
   onDeleteConversation,
   profile,
-  onEditProfile
+  onEditProfile,
+  onlineUsers = []
 }: SidebarProps) {
   const router = useRouter()
 
@@ -146,9 +148,10 @@ export default function Sidebar({
                   <div className="flex items-center">
                     <UserAvatar
                       userId={conversation.other_user.id}
-                      avatarUrl={conversation.other_user.avatar_url}
                       username={conversation.other_user.username}
-                      size="sm"
+                      avatarUrl={conversation.other_user.avatar_url}
+                      showStatus={true}
+                      online={onlineUsers.includes(String(conversation.other_user.id))}
                     />
                     <span className="ml-2">{conversation.other_user.username}</span>
                   </div>
@@ -179,6 +182,8 @@ export default function Sidebar({
                 avatarUrl={profile?.avatar_url || null}
                 username={profile?.username || user.email || ''}
                 size="md"
+                showStatus={true}
+                online={onlineUsers.includes(String(user.id))}
               />
               <div className="ml-2 text-left flex-1 min-w-0">
                 <div className="text-sm font-medium text-gray-300 truncate">

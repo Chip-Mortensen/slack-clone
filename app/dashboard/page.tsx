@@ -36,9 +36,7 @@ export default function Dashboard() {
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [navigationSource, setNavigationSource] = useState<'sidebar' | 'search' | null>(null)
-
-  // Add usePresence here, it will only be active when user exists
-  usePresence(user?.id)
+  const onlineUsers = usePresence()
 
   // Channel related hooks
   const {
@@ -386,6 +384,7 @@ export default function Dashboard() {
         onDeleteConversation={handleDeleteConversation}
         profile={profile}
         onEditProfile={() => setIsEditProfileModalOpen(true)}
+        onlineUsers={onlineUsers}
       />
 
       <ChatArea
@@ -405,6 +404,7 @@ export default function Dashboard() {
         initialLoadPromise={initialLoadPromise}
         navigationSource={navigationSource}
         setNavigationSource={setNavigationSource}
+        onlineUsers={onlineUsers}
       />
 
       <CreateChannelModal
