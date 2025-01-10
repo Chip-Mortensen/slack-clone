@@ -117,7 +117,7 @@ export default function MessageInput({
 
   return (
     <div
-      className={`relative p-4 ${isDragging ? 'bg-blue-50' : ''}`}
+      className={`relative p-4 bg-gray-100 ${isDragging ? 'bg-blue-50' : ''}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
