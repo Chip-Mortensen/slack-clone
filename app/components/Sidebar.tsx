@@ -72,7 +72,7 @@ export default function Sidebar({
         <div className="flex-1 overflow-y-auto">
           <div className="p-4">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-gray-400">
                 Channels
               </h2>
               <button 
@@ -120,7 +120,7 @@ export default function Sidebar({
         {/* Direct Messages Section */}
         <div className="p-4">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-gray-400">
               Direct Messages
             </h2>
             <button 

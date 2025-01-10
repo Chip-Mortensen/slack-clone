@@ -17,7 +17,7 @@ export default function DirectMessageHeader({ conversation }: DirectMessageHeade
           username={conversation.other_user.username}
           size="md"
         />
-        <span className="font-medium ml-2">
+        <span className="font-bold ml-2">
           {conversation.other_user.username}
         </span>
       </div>

@@ -135,7 +135,7 @@ export default function ChatArea({
       return (
         <>
           <Hash size={20} className="text-gray-400 mr-2" />
-          <h2 className="text-lg font-medium">
+          <h2 className="text-lg font-bold">
             {currentChannel.name}
           </h2>
         </>
@@ -154,14 +154,14 @@ export default function ChatArea({
               showStatus={true}
               online={onlineUsers.includes(String(currentConversation.other_user.id))}
             />
-            <span className="ml-2 font-medium">
+            <span className="ml-2 font-bold">
               {currentConversation.other_user.username}
             </span>
           </div>
         </>
       )
     }
-    return <h2 className="text-lg font-medium">Select a channel or conversation</h2>
+    return <h2 className="text-lg font-bold">Select a channel or conversation</h2>
   }
 
   // Clean up timeout on unmount

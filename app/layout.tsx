@@ -25,7 +25,7 @@ export default function RootLayout({
         <SupabaseProvider>
           <UserStatusProvider>
             <ClientPresenceWrapper />
-            <main className="min-h-screen bg-gray-100">
+            <main className="min-h-screen bg-gradient-to-b from-gray-50 via-gray-100 to-gray-200">
               {children}
             </main>
           </UserStatusProvider>

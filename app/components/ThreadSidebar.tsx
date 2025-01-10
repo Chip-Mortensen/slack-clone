@@ -257,7 +257,7 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
       {/* Header */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
         <div>
-          <h3 className="font-medium">Thread</h3>
+          <h3 className="font-bold">Thread</h3>
           <span className="text-sm text-gray-500">{replies.length} replies</span>
         </div>
         <button 
@@ -310,7 +310,7 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-center space-x-2">
-                <span className="font-medium">{reply.profiles.username}</span>
+                <span className="font-bold">{reply.profiles.username}</span>
                 <span className="text-sm text-gray-500">
                   {formatTimestamp(new Date(reply.created_at))}
                 </span>
