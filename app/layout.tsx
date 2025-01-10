@@ -3,6 +3,8 @@ import { Inter } from 'next/font/google'
 import SupabaseProvider from './supabase-provider'
 import { UserStatusProvider } from './contexts/UserStatusContext'
 import ClientPresenceWrapper from './components/ClientPresenceWrapper'
+import { AvatarContextProvider } from './contexts/AvatarContext'
+import { NameContextProvider } from './contexts/NameContext'
 
 const inter = Inter({ 
   subsets: ['latin'],
@@ -24,10 +26,14 @@ export default function RootLayout({
       <body>
         <SupabaseProvider>
           <UserStatusProvider>
-            <ClientPresenceWrapper />
-            <main className="min-h-screen bg-gradient-to-b from-gray-50 via-gray-100 to-gray-200">
-              {children}
-            </main>
+            <AvatarContextProvider>
+              <NameContextProvider>
+                <ClientPresenceWrapper />
+                <main className="min-h-screen bg-gradient-to-b from-gray-50 via-gray-100 to-gray-200">
+                  {children}
+                </main>
+              </NameContextProvider>
+            </AvatarContextProvider>
           </UserStatusProvider>
         </SupabaseProvider>
       </body>

@@ -1,0 +1,30 @@
+- # Real-Time Name Updates Implementation Plan
+-
+- ## Overview
+-
+- Currently, usernames don't update in real-time across the application when profile changes occur. This document focuses specifically on name updates.
+-
+- ## Affected Components
+-
+- Primary Components:
+-
+- - DirectMessageHeader.tsx (shows chat participant's name)
+- - MessageList.tsx (shows sender names)
+- - Sidebar.tsx (shows conversation list names)
+-
+- ## Current Implementation
+-
+- Names are currently:
+- - Passed as props to components
+- - Only update on page refresh
+- - No real-time updates implemented
+-
+- ## Implementation Strategy
+-
+- ### 1. Create Name Context
+-
+- - Create NameContext for managing username updates
+- - Subscribe only to username changes in profiles table
+- - Implement alongside current prop system initially
+-
+- [... continue with phases focused only on name updates ...]

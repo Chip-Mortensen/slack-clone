@@ -1,0 +1,34 @@
+- # Real-Time Avatar Updates Implementation Plan
+-
+- ## Overview
+-
+- Currently, user avatars don't update in real-time across the application when profile changes occur. This document focuses specifically on avatar updates.
+-
+- ## Affected Components
+-
+- Primary Components:
+-
+- - UserAvatar.tsx (displays user avatars throughout the app)
+- - MessageList.tsx (shows message sender avatars)
+- - DirectMessageHeader.tsx (shows chat participant's avatar)
+- - Sidebar.tsx (shows conversation list avatars)
+-
+- ## Current Implementation
+-
+- ### UserAvatar Component
+-
+- Currently, UserAvatar:
+- - Receives avatarUrl as a prop
+- - Has no real-time updates for avatar changes
+- - Already handles real-time status updates well
+-
+- ## Implementation Strategy
+-
+- ### 1. Create Avatar Context
+-
+- - Create AvatarContext following pattern similar to UserStatusContext
+- - Subscribe only to avatar_url changes in profiles table
+- - Keep existing status/presence functionality unchanged
+- - Initially implement alongside current prop-based system
+-
+- [... continue with phases focused only on avatar updates ...]

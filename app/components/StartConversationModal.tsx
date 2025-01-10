@@ -9,6 +9,7 @@ import UserAvatar from './UserAvatar'
 interface StartConversationModalProps {
   isOpen: boolean
   onClose: () => void
+  onlineUsers?: string[]
 }
 
 interface SearchUser {
@@ -20,6 +21,7 @@ interface SearchUser {
 export default function StartConversationModal({
   isOpen,
   onClose,
+  onlineUsers = []
 }: StartConversationModalProps) {
   const { supabase } = useSupabase()
   const [searchTerm, setSearchTerm] = useState('')
@@ -129,9 +131,9 @@ export default function StartConversationModal({
               >
                 <UserAvatar
                   userId={user.id}
-                  avatarUrl={user.avatar_url}
-                  username={user.username}
-                  size="md"
+                  size="sm"
+                  showStatus={true}
+                  online={onlineUsers.includes(user.id)}
                 />
                 <span className="ml-2">{user.username}</span>
               </button>

@@ -8,6 +8,7 @@ import MessageInput from './MessageInput'
 import MessageContent from './MessageContent'
 import UserAvatar from './UserAvatar'
 import MessageReactions from './MessageReactions'
+import { useName } from '../contexts/NameContext'
 
 interface ThreadSidebarProps {
   parentMessage: Message | null
@@ -16,6 +17,7 @@ interface ThreadSidebarProps {
 
 export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarProps) {
   const { supabase } = useSupabase()
+  const { getUsername, loadUsername } = useName()
   const [replies, setReplies] = useState<MessageReply[]>([])
   const [newReply, setNewReply] = useState('')
   const [loading, setLoading] = useState(true)
@@ -250,6 +252,16 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
     }
   }
 
+  // Load usernames for all participants
+  useEffect(() => {
+    if (parentMessage) {
+      loadUsername(parentMessage.user_id.toString())
+    }
+    replies.forEach(reply => {
+      loadUsername(reply.user_id.toString())
+    })
+  }, [parentMessage, replies, loadUsername])
+
   if (!parentMessage) return null
 
   return (
@@ -273,12 +285,12 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
         <div className="flex items-start space-x-3">
           <UserAvatar
             userId={parentMessage.user_id}
-            avatarUrl={parentMessage.profiles.avatar_url}
-            username={parentMessage.profiles.username}
           />
           <div>
             <div className="flex items-center space-x-2">
-              <span className="font-medium">{parentMessage.profiles.username}</span>
+              <span className="font-bold">
+                {getUsername(parentMessage.user_id.toString()) || 'Unknown User'}
+              </span>
               <span className="text-sm text-gray-500">
                 {formatTimestamp(new Date(parentMessage.created_at))}
               </span>
@@ -305,12 +317,12 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
           >
             <UserAvatar
               userId={reply.user_id}
-              avatarUrl={reply.profiles.avatar_url}
-              username={reply.profiles.username}
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-center space-x-2">
-                <span className="font-bold">{reply.profiles.username}</span>
+                <span className="font-bold">
+                  {getUsername(reply.user_id.toString()) || 'Unknown User'}
+                </span>
                 <span className="text-sm text-gray-500">
                   {formatTimestamp(new Date(reply.created_at))}
                 </span>

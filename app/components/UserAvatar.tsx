@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useSupabase } from '../supabase-provider'
+import { useAvatar } from '../contexts/AvatarContext'
+import { useName } from '../contexts/NameContext'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { useUserStatus } from '../contexts/UserStatusContext'
 
@@ -12,8 +14,6 @@ const STATUS_EMOJIS = {
 
 interface UserAvatarProps {
   userId: string | number
-  username: string
-  avatarUrl?: string | null
   size?: 'sm' | 'md' | 'lg'
   showStatus?: boolean
   online?: boolean
@@ -30,14 +30,16 @@ interface PresenceRow {
 
 export default function UserAvatar({
   userId,
-  username,
-  avatarUrl,
   size = 'md',
   showStatus = false,
   online = false
 }: UserAvatarProps) {
   const { supabase } = useSupabase()
   const [userStatus, setUserStatus] = useState<string | null>(null)
+  const { getAvatarUrl, loadAvatarUrl } = useAvatar()
+  const { getUsername, loadUsername } = useName()
+  const realtimeAvatarUrl = getAvatarUrl(userId.toString())
+  const username = getUsername(userId.toString()) || 'Loading...'
 
   const sizeClasses = {
     sm: 'w-6 h-6',
@@ -96,12 +98,17 @@ export default function UserAvatar({
     }
   }, [supabase, userId, checkAndUpdateStatus])
 
+  useEffect(() => {
+    loadAvatarUrl(userId.toString())
+    loadUsername(userId.toString())
+  }, [userId, loadAvatarUrl, loadUsername])
+
   return (
     <div className="relative inline-block">
       <div className={`${sizeClasses[size]} rounded-lg bg-gray-200 overflow-hidden`}>
-        {avatarUrl && (
+        {realtimeAvatarUrl && (
           <img
-            src={avatarUrl}
+            src={realtimeAvatarUrl}
             alt={username}
             className={`${sizeClasses[size]} object-cover`}
             onError={(e) => {

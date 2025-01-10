@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import type { Message, DirectMessage } from '@/app/types/models'
 import MessageReactions from './MessageReactions'
 import UserAvatar from './UserAvatar'
+import { useName } from '../contexts/NameContext'
 import MessageContent from './MessageContent'
 import { useScrollManager } from '../hooks/useScrollManager'
 import { useSupabase } from '../supabase-provider'
@@ -36,6 +37,7 @@ export default function MessageList({
   onlineUsers = []
 }: MessageListProps) {
   const { supabase } = useSupabase()
+  const { getUsername } = useName()
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const observerTarget = useRef<HTMLDivElement>(null)
@@ -253,27 +255,15 @@ export default function MessageList({
 
   const getMessageDisplay = (message: Message | DirectMessage) => {
     const isChannelMessage = 'profiles' in message
-    
-    if (isChannelMessage) {
-      return {
-        username: message.profiles.username,
-        avatarUrl: message.profiles.avatar_url,
-        content: message.content,
-        timestamp: new Date(message.created_at),
-        isChannelMessage: true,
-        fileUrl: message.file_url,
-        fileName: message.file_name
-      }
-    }
+    const userId = isChannelMessage ? message.user_id : message.sender_id
     
     return {
-      username: message.sender?.username || 'Unknown User',
-      avatarUrl: message.sender?.avatar_url,
-      content: message.message,
+      content: isChannelMessage ? message.content : message.message,
       timestamp: new Date(message.created_at),
-      isChannelMessage: false,
+      isChannelMessage,
       fileUrl: message.file_url,
-      fileName: message.file_name
+      fileName: message.file_name,
+      userId
     }
   }
 
@@ -327,18 +317,15 @@ export default function MessageList({
       <div className="space-y-1">
         {messages.map((message) => {
           const { 
-            username, 
-            avatarUrl, 
             content, 
             timestamp, 
             isChannelMessage,
             fileUrl,
-            fileName 
+            fileName,
+            userId 
           } = getMessageDisplay(message)
           
-          const userId = isChannelMessage 
-            ? (message as Message).user_id 
-            : (message as DirectMessage).sender_id
+          const username = getUsername(userId.toString()) || 'Unknown User'
 
           return (
             <div 
@@ -352,8 +339,6 @@ export default function MessageList({
             >
               <UserAvatar
                 userId={userId}
-                avatarUrl={avatarUrl}
-                username={username}
                 size="lg"
                 showStatus={true}
                 online={onlineUsers?.includes(userId) || false}

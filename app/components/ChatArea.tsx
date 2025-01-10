@@ -9,6 +9,7 @@ import SearchMessages from './SearchMessages'
 import ThreadSidebar from './ThreadSidebar'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useScrollManager } from '../hooks/useScrollManager'
+import DirectMessageHeader from './DirectMessageHeader'
 
 interface ChatAreaProps {
   currentChannel: Channel | null
@@ -142,22 +143,7 @@ export default function ChatArea({
     }
     if (currentConversation) {
       return (
-        <>
-          <MessageSquare size={20} className="text-gray-400 mr-2" />
-          <div className="flex items-center">
-            <UserAvatar
-              userId={currentConversation.other_user.id}
-              username={currentConversation.other_user.username}
-              avatarUrl={currentConversation.other_user.avatar_url}
-              size="md"
-              showStatus={true}
-              online={onlineUsers.includes(String(currentConversation.other_user.id))}
-            />
-            <span className="ml-2 font-bold">
-              {currentConversation.other_user.username}
-            </span>
-          </div>
-        </>
+        <DirectMessageHeader conversation={currentConversation} onlineUsers={onlineUsers} />
       )
     }
     return <h2 className="text-lg font-bold">Select a channel or conversation</h2>

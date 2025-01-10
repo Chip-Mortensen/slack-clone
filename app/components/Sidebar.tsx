@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import type { Channel, Conversation, Profile } from '@/app/types'
 import type { User } from '@supabase/auth-helpers-nextjs'
 import UserAvatar from './UserAvatar'
+import { useName } from '../contexts/NameContext'
 
 interface SidebarProps {
   user: User
@@ -46,6 +47,7 @@ export default function Sidebar({
   onlineUsers = []
 }: SidebarProps) {
   const router = useRouter()
+  const { getUsername } = useName()
 
   const handleChannelClick = (channelId: string | number) => {
     onChannelSelect(channelId, 'navigation')
@@ -148,12 +150,12 @@ export default function Sidebar({
                   <div className="flex items-center">
                     <UserAvatar
                       userId={conversation.other_user.id}
-                      username={conversation.other_user.username}
-                      avatarUrl={conversation.other_user.avatar_url}
                       showStatus={true}
                       online={onlineUsers.includes(String(conversation.other_user.id))}
                     />
-                    <span className="ml-2">{conversation.other_user.username}</span>
+                    <span className="ml-2">
+                      {getUsername(conversation.other_user.id.toString()) || 'Unknown User'}
+                    </span>
                   </div>
                 </button>
                 <button
@@ -179,8 +181,6 @@ export default function Sidebar({
             <div className="flex items-center flex-1 min-w-0">
               <UserAvatar
                 userId={user.id}
-                avatarUrl={profile?.avatar_url || null}
-                username={profile?.username || user.email || ''}
                 size="md"
                 showStatus={true}
                 online={onlineUsers.includes(String(user.id))}
