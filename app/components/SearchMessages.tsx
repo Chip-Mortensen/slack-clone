@@ -202,20 +202,30 @@ export default function SearchMessages({
     }
   }, [supabase, currentUserId])
 
-  const handleResultClick = (result: typeof results[0]) => {
-    // Set search mode before navigation
-    onSearchStateChange(true)
-    onMessageSelect(result.id, result.context)
-    setResults([])
-  }
-
-  // Clear search state when context changes
+  // Clear results and reset scroll state when context changes
   useEffect(() => {
-    onSearchStateChange(false)
+    setResults([])
+    if (onSearchStateChange) {
+      onSearchStateChange(false)
+    }
   }, [channelId, conversationId, onSearchStateChange])
 
+  const handleResultClick = (result: typeof results[0]) => {
+    setResults([]) // Clear results immediately
+    
+    // Reset scroll states before navigating
+    if (onSearchStateChange) {
+      onSearchStateChange(true)
+    }
+    
+    // Delay the message selection slightly to ensure states are reset
+    requestAnimationFrame(() => {
+      onMessageSelect(result.id, result.context)
+    })
+  }
+
   return (
-    <div className="relative">
+    <div className="relative search-area">
       <SearchInput
         channels={channels}
         conversations={conversations}

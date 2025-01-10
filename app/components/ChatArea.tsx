@@ -8,6 +8,7 @@ import UserAvatar from './UserAvatar'
 import SearchMessages from './SearchMessages'
 import ThreadSidebar from './ThreadSidebar'
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useScrollManager } from '../hooks/useScrollManager'
 
 interface ChatAreaProps {
   currentChannel: Channel | null
@@ -57,6 +58,7 @@ export default function ChatArea({
   const messagesRef = useRef<(Message | DirectMessage)[]>([])
   const preventAutoScroll = useRef(false)
   const [isSearchNavigation, setIsSearchNavigation] = useState(false)
+  const { scrollToBottom } = useScrollManager()
 
   // Keep messagesRef in sync
   useEffect(() => {
@@ -79,34 +81,30 @@ export default function ChatArea({
     type: 'channel' | 'conversation'
     id: string | number
   }) => {
+    // Clear previous states
+    setHighlightedMessageId(null)
     setNavigationSource('search')
-    setIsSearching(true)
-    setIsSearchNavigation(true)
-    preventAutoScroll.current = true
-
+    
     try {
-      // Switch context if needed
-      if (context.type === 'channel') {
-        const result = await onChannelSelect(context.id, 'search')
-        if (result?.promise) {
-          await result.promise
-          await new Promise(resolve => setTimeout(resolve, 500))
+      const isCurrentContext = (
+        (context.type === 'channel' && currentChannel?.id === context.id) ||
+        (context.type === 'conversation' && currentConversation?.id === context.id)
+      )
+
+      if (!isCurrentContext) {
+        if (context.type === 'channel') {
+          await onChannelSelect(context.id, 'search')
+        } else {
+          await onConversationSelect(context.id, 'search')
         }
-      } else {
-        const result = await onConversationSelect(context.id, 'search')
-        if (result?.promise) {
-          await result.promise
-          await new Promise(resolve => setTimeout(resolve, 500))
-        }
+        // Add small delay to ensure context switch is complete
+        await new Promise(resolve => setTimeout(resolve, 100))
       }
 
       setHighlightedMessageId(messageId)
     } catch (error) {
-      setNavigationSource(null)
-      setIsSearching(false)
-      setIsSearchNavigation(false)
-      setHighlightedMessageId(null)
-      preventAutoScroll.current = false
+      console.error('Error selecting message:', error)
+      setNavigationSource('sidebar') // This will trigger cleanup
     }
   }
 
@@ -118,12 +116,13 @@ export default function ChatArea({
       await onSendMessage(e, fileInfo)
       setNewMessage('')
       
-      // Scroll to bottom after sending
-      const messagesDiv = document.querySelector('.messages-container')
-      if (messagesDiv) {
-        setTimeout(() => {
-          messagesDiv.scrollTop = messagesDiv.scrollHeight
-        }, 100)
+      // Use the scroll manager for consistent behavior
+      const messagesContainer = document.querySelector('.messages-container') as HTMLElement
+      if (messagesContainer) {
+        // Force scroll to bottom after sending
+        requestAnimationFrame(() => {
+          scrollToBottom(messagesContainer, { force: true, behavior: 'smooth' })
+        })
       }
     } catch (error) {
       console.error('Error sending message:', error)
@@ -173,61 +172,20 @@ export default function ChatArea({
     }
   }, [])
 
-  // Update the user interaction handler
+  // Single effect to handle all navigation and search state changes
   useEffect(() => {
-    const handleUserInteraction = (e: MouseEvent | KeyboardEvent | WheelEvent) => {
-      if (isSearching || isSearchNavigation) {
-        const chatArea = document.querySelector('.messages-container')
-        const searchArea = document.querySelector('.search-area')
-        
-        // Don't clear if interaction is within search area
-        if (searchArea?.contains(e.target as Node)) {
-          return
-        }
-
-        // Only clear search states if interaction is within chat area
-        if (chatArea?.contains(e.target as Node)) {
-          setIsSearching(false)
-          setHighlightedMessageId(null)
-          setIsSearchNavigation(false)
-          // Don't reset preventAutoScroll here
-        }
-      }
+    if (navigationSource === 'sidebar') {
+      // Clear all search-related states
+      setIsSearching(false)
+      setIsSearchNavigation(false)
+      setHighlightedMessageId(null)
+      preventAutoScroll.current = false
+    } else if (navigationSource === 'search') {
+      // Ensure search states are set
+      setIsSearching(true)
+      setIsSearchNavigation(true)
     }
-
-    window.addEventListener('click', handleUserInteraction)
-    window.addEventListener('keydown', handleUserInteraction)
-    window.addEventListener('wheel', handleUserInteraction)
-
-    return () => {
-      window.removeEventListener('click', handleUserInteraction)
-      window.removeEventListener('keydown', handleUserInteraction)
-      window.removeEventListener('wheel', handleUserInteraction)
-    }
-  }, [isSearching, isSearchNavigation])
-
-  // Update the search navigation reset effect
-  useEffect(() => {
-    if (!isSearching && isSearchNavigation) {
-    }
-  }, [isSearching])
-
-  // Add effect to handle navigation source changes
-  useEffect(() => {
-  }, [navigationSource, isSearching, isSearchNavigation])
-
-  // Update the context change effect
-  useEffect(() => {
-    const contextId = currentChannel?.id || currentConversation?.id
-    if (contextId) {
-      if (navigationSource === 'sidebar') {
-        setIsSearching(false)
-        setIsSearchNavigation(false)
-        setHighlightedMessageId(null)
-        preventAutoScroll.current = false
-      }
-    }
-  }, [currentChannel?.id, currentConversation?.id, navigationSource])
+  }, [navigationSource, currentChannel?.id, currentConversation?.id])
 
   return (
     <div className="flex-1 flex">
