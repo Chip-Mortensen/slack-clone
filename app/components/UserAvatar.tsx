@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect } from 'react'
 import { useSupabase } from '../supabase-provider'
 import { useAvatar } from '../contexts/AvatarContext'
 import { useName } from '../contexts/NameContext'
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { useUserStatus } from '../contexts/UserStatusContext'
+import { profileCache } from '../utils/profileCache'
+import { useDebounce } from '../hooks/useDebounce'
 
 const STATUS_EMOJIS = {
   in_meeting: '🗓️',
@@ -19,25 +20,15 @@ interface UserAvatarProps {
   online?: boolean
 }
 
-interface UserPresence {
-  is_online: boolean
-  last_seen: string
-}
-
-interface PresenceRow {
-  is_online: boolean
-}
-
 export default function UserAvatar({
   userId,
   size = 'md',
   showStatus = false,
   online = false
 }: UserAvatarProps) {
-  const { supabase } = useSupabase()
-  const [userStatus, setUserStatus] = useState<string | null>(null)
   const { getAvatarUrl, loadAvatarUrl } = useAvatar()
   const { getUsername, loadUsername } = useName()
+  const { status, refresh } = useUserStatus(userId.toString())
   const realtimeAvatarUrl = getAvatarUrl(userId.toString())
   const username = getUsername(userId.toString()) || 'Loading...'
 
@@ -53,55 +44,25 @@ export default function UserAvatar({
     lg: 'w-3 h-3 border-2'
   }
 
-  const checkAndUpdateStatus = useCallback(async () => {
-    const now = new Date().toISOString()
-    const { data } = await supabase
-      .from('user_statuses')
-      .select('status_type, expires_at')
-      .eq('user_id', userId)
-      .gt('expires_at', now)
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    if (data?.[0]) {
-      setUserStatus(data[0].status_type)
-    } else {
-      setUserStatus(null)
-    }
-  }, [supabase, userId])
-
   useEffect(() => {
-    // Initial fetch
-    checkAndUpdateStatus()
+    if (!showStatus) return;
     
-    // Set up real-time subscription for status updates
-    const channel = supabase
-      .channel(`user_status_${userId}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'user_statuses',
-        filter: `user_id=eq.${userId}`
-      }, () => {
-        checkAndUpdateStatus()
-      })
-      .subscribe()
+    const loadData = async () => {
+      await Promise.all([
+        loadAvatarUrl(userId.toString()),
+        loadUsername(userId.toString()),
+        refresh()
+      ]);
+    };
 
-    // Check more frequently - every 10 seconds during testing
+    loadData();
+
     const intervalId = setInterval(() => {
-      checkAndUpdateStatus()
-    }, 10000) // 10 seconds for testing, change back to 60000 for production
+      refresh();
+    }, 60000);
 
-    return () => {
-      supabase.removeChannel(channel)
-      clearInterval(intervalId)
-    }
-  }, [supabase, userId, checkAndUpdateStatus])
-
-  useEffect(() => {
-    loadAvatarUrl(userId.toString())
-    loadUsername(userId.toString())
-  }, [userId, loadAvatarUrl, loadUsername])
+    return () => clearInterval(intervalId);
+  }, [userId, showStatus]);
 
   return (
     <div className="relative inline-block">
@@ -119,38 +80,40 @@ export default function UserAvatar({
         )}
       </div>
       {showStatus && (
-        <div 
-          className={`
-            absolute bottom-0 right-0
-            ${presenceDotClasses[size]}
-            rounded-full
-            ${online 
-              ? 'bg-green-500 border-white' 
-              : 'bg-white border-green-500'
-            }
-            z-10
-            shadow-sm
-          `}
-          style={{
-            outline: '1px solid rgba(0,0,0,0.1)',
-            transform: 'translate(25%, 25%)'
-          }}
-          title={online ? 'Online' : 'Offline'}
-        />
-      )}
-      {userStatus && (
-        <div 
-          className="absolute bg-white rounded-full flex items-center justify-center text-xs border border-gray-200"
-          style={{ 
-            width: sizeClasses[size].match(/\d+/)?.[0] ? `${parseInt(sizeClasses[size].match(/\d+/)?.[0] || '0') / 2}px` : '16px',
-            height: sizeClasses[size].match(/\d+/)?.[0] ? `${parseInt(sizeClasses[size].match(/\d+/)?.[0] || '0') / 2}px` : '16px',
-            top: '-4px',
-            left: '50%',
-            transform: 'translateX(-50%)'
-          }}
-        >
-          {STATUS_EMOJIS[userStatus as keyof typeof STATUS_EMOJIS]}
-        </div>
+        <>
+          <div 
+            className={`
+              absolute bottom-0 right-0
+              ${presenceDotClasses[size]}
+              rounded-full
+              ${online 
+                ? 'bg-green-500 border-white' 
+                : 'bg-white border-green-500'
+              }
+              z-10
+              shadow-sm
+            `}
+            style={{
+              outline: '1px solid rgba(0,0,0,0.1)',
+              transform: 'translate(25%, 25%)'
+            }}
+            title={online ? 'Online' : 'Offline'}
+          />
+          {status && (
+            <div 
+              className="absolute bg-white rounded-full flex items-center justify-center text-xs border border-gray-200"
+              style={{ 
+                width: sizeClasses[size].match(/\d+/)?.[0] ? `${parseInt(sizeClasses[size].match(/\d+/)?.[0] || '0') / 2}px` : '16px',
+                height: sizeClasses[size].match(/\d+/)?.[0] ? `${parseInt(sizeClasses[size].match(/\d+/)?.[0] || '0') / 2}px` : '16px',
+                top: '-4px',
+                left: '50%',
+                transform: 'translateX(-50%)'
+              }}
+            >
+              {STATUS_EMOJIS[status as keyof typeof STATUS_EMOJIS]}
+            </div>
+          )}
+        </>
       )}
       <div className="sr-only">
         Status: {online ? 'online' : 'offline'} for user {userId}

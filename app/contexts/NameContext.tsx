@@ -3,6 +3,8 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { useSupabase } from '../supabase-provider'
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
+import { profileCache } from '../utils/profileCache'
+import { useDebounce } from '../hooks/useDebounce'
 
 interface NameContextType {
   getUsername: (userId: string) => string | null
@@ -25,9 +27,15 @@ export function NameContextProvider({ children }: { children: React.ReactNode })
   const [usernames, setUsernames] = useState<Record<string, string | null>>({})
   const [loadingNames, setLoadingNames] = useState<Set<string>>(new Set())
 
-  // Initial load of all usernames
+  // Modify initial load to use cache
   useEffect(() => {
     async function loadInitialNames() {
+      const cached = profileCache.get('all_usernames');
+      if (cached) {
+        setUsernames(cached);
+        return;
+      }
+
       try {
         const { data, error } = await supabase
           .from('profiles')
@@ -42,6 +50,7 @@ export function NameContextProvider({ children }: { children: React.ReactNode })
             [id]: username
           }), {})
           
+          profileCache.set('all_usernames', nameMap);
           setUsernames(nameMap)
         }
       } catch (error) {
@@ -52,7 +61,17 @@ export function NameContextProvider({ children }: { children: React.ReactNode })
     loadInitialNames()
   }, [supabase])
 
-  const loadUsername = async (userId: string) => {
+  const loadUsername = useDebounce(async (userId: string) => {
+    // Check cache first
+    const cached = profileCache.get(`username_${userId}`);
+    if (cached) {
+      setUsernames(prev => ({
+        ...prev,
+        [userId]: cached
+      }));
+      return;
+    }
+
     if (usernames[userId] || loadingNames.has(userId)) return
     
     setLoadingNames(prev => new Set(prev).add(userId))
@@ -67,6 +86,7 @@ export function NameContextProvider({ children }: { children: React.ReactNode })
       if (error) throw error
       
       if (data?.username) {
+        profileCache.set(`username_${userId}`, data.username);
         setUsernames(prev => ({
           ...prev,
           [userId]: data.username
@@ -81,8 +101,9 @@ export function NameContextProvider({ children }: { children: React.ReactNode })
         return next
       })
     }
-  }
+  }, 500)
 
+  // Optimize real-time subscription to use cache
   useEffect(() => {
     const channel = supabase
       .channel('username_changes')
@@ -91,9 +112,9 @@ export function NameContextProvider({ children }: { children: React.ReactNode })
         schema: 'public',
         table: 'profiles',
       }, (payload) => {
-        console.log('Profile change received:', payload)
         const newData = payload.new as ProfileRow
         const { id, username } = newData
+        profileCache.set(`username_${id}`, username || null);
         setUsernames(prev => ({
           ...prev,
           [id]: username || null

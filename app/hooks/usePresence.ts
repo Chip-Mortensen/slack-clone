@@ -11,8 +11,10 @@ interface UserPresence {
   updated_at: string
 }
 
-const CLEANUP_THRESHOLD = 10 * 1000 // 10 seconds for updated_at
-const LAST_SEEN_THRESHOLD = 30 * 1000 // 30 seconds for last_seen fallback
+const HEARTBEAT_INTERVAL = 30000 // 5s -> 30s
+const STALE_CHECK_INTERVAL = 30000 // 10s -> 30s
+const CLEANUP_THRESHOLD = 45000 // 10s -> 45s
+const LAST_SEEN_THRESHOLD = 90000 // 30s -> 90s
 
 const isUserActive = (presence: UserPresence) => {
   try {
@@ -102,15 +104,15 @@ export const usePresence = () => {
       // Update own presence
       await updatePresence(user.id, true)
 
-      // Setup heartbeat
+      // Update heartbeat interval
       heartbeatInterval = setInterval(() => {
         void updatePresence(user.id, true)
-      }, 5000)
+      }, HEARTBEAT_INTERVAL)
 
-      // Add polling for stale users every 10 seconds
+      // Update stale check interval
       stalePollInterval = setInterval(() => {
         void checkStaleUsers()
-      }, 10000) // Check every 10 seconds
+      }, STALE_CHECK_INTERVAL)
     }
 
     const updatePresence = async (userId: string, isOnline: boolean) => {

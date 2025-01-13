@@ -3,6 +3,8 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { useSupabase } from '../supabase-provider'
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
+import { profileCache } from '../utils/profileCache'
+import { useDebounce } from '../hooks/useDebounce'
 
 interface AvatarContextType {
   getAvatarUrl: (userId: string) => string | null
@@ -48,37 +50,50 @@ export function AvatarContextProvider({ children }: { children: React.ReactNode 
     loadInitialAvatars()
   }, [supabase])
 
-  const loadAvatarUrl = async (userId: string) => {
+  const loadAvatarUrl = useDebounce(async (userId: string) => {
+    // Check cache first
+    const cached = profileCache.get(`avatar_${userId}`);
+    if (cached) {
+      setAvatarUrls(prev => ({
+        ...prev,
+        [userId]: cached
+      }));
+      return;
+    }
+
     // Don't fetch if we already have it or are loading it
-    if (avatarUrls[userId] || loadingAvatars.has(userId)) return
+    if (avatarUrls[userId] || loadingAvatars.has(userId)) return;
     
-    setLoadingAvatars(prev => new Set(prev).add(userId))
+    setLoadingAvatars(prev => new Set(prev).add(userId));
     
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('avatar_url')
         .eq('id', userId)
-        .single()
+        .single();
         
-      if (error) throw error
+      if (error) throw error;
       
       if (data?.avatar_url) {
+        // Update cache
+        profileCache.set(`avatar_${userId}`, data.avatar_url);
+        
         setAvatarUrls(prev => ({
           ...prev,
           [userId]: data.avatar_url
-        }))
+        }));
       }
     } catch (error) {
-      console.error('Error loading avatar:', error)
+      console.error('Error loading avatar:', error);
     } finally {
       setLoadingAvatars(prev => {
-        const next = new Set(prev)
-        next.delete(userId)
-        return next
-      })
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
     }
-  }
+  }, 500); // Add 500ms debounce
 
   useEffect(() => {
     const channel = supabase

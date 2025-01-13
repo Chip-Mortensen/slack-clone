@@ -77,20 +77,36 @@ export default function EditProfileModal({
 
       if (profileError) throw profileError
 
-      // Always delete existing status first
-      const { error: deleteError } = await supabase
+      // Handle status changes
+      const { data: currentStatus } = await supabase
         .from('user_statuses')
-        .delete()
+        .select('id')
         .eq('user_id', profile.id)
+        .gt('expires_at', new Date().toISOString())
+        .maybeSingle()
 
-      if (deleteError) throw deleteError
+      console.log('Current status:', currentStatus)
+
+      // Delete existing status if it exists
+      if (currentStatus?.id) {
+        console.log('Deleting status:', currentStatus.id)
+        const { data, error: deleteError } = await supabase
+          .from('user_statuses')
+          .delete()
+          .match({ id: currentStatus.id, user_id: profile.id })
+          .select('id, user_id, status_type')
+
+        console.log('Delete response:', { data, error: deleteError })
+        if (deleteError) throw deleteError
+      }
 
       // Add new status if selected
       if (status) {
+        console.log('Setting new status:', status)
         const statusOption = STATUS_OPTIONS.find(opt => opt.id === status)
         if (statusOption) {
           const expiresAt = new Date(Date.now() + statusOption.duration).toISOString()
-          const { error: statusError } = await supabase
+          const { data, error: statusError } = await supabase
             .from('user_statuses')
             .insert({
               user_id: profile.id,
@@ -98,6 +114,7 @@ export default function EditProfileModal({
               expires_at: expiresAt
             })
 
+          console.log('Insert response:', { data, error: statusError })
           if (statusError) throw statusError
         }
       }
@@ -105,6 +122,7 @@ export default function EditProfileModal({
       await onUpdate()
       onClose()
     } catch (error) {
+      console.error('Error in handleSubmit:', error)
       setError(error instanceof Error ? error.message : 'Failed to update profile')
     } finally {
       setLoading(false)
