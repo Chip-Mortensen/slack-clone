@@ -90,6 +90,21 @@ export function useDirectMessageChat(conversation: Conversation | null) {
           filter: `conversation_id=eq.${conversation.id}`
         },
         async (payload) => {
+          console.log('=== Realtime Event Received ===')
+          console.log('Payload:', payload)
+          console.log('Current messages:', messages)
+
+          // Check if we already have this message locally
+          if (messages.some(m => 
+            m.sender_id === payload.new.sender_id && 
+            m.message === payload.new.message && 
+            Math.abs(new Date(m.created_at).getTime() - new Date(payload.new.created_at).getTime()) < 1000
+          )) {
+            console.log('Duplicate message detected, skipping')
+            return;
+          }
+
+          console.log('Fetching full message details')
           const { data, error } = await supabase
             .from('direct_messages')
             .select(`
@@ -109,9 +124,20 @@ export function useDirectMessageChat(conversation: Conversation | null) {
             .eq('id', payload.new.id)
             .single()
 
+          console.log('Full message fetch result:', { data, error })
+
           if (!error && data) {
+            console.log('Adding message to state')
             setMessages(prev => [...prev, data])
+            // Force scroll to bottom for new messages
+            setTimeout(() => {
+              const container = document.querySelector('.messages-container')
+              if (container) {
+                container.scrollTop = container.scrollHeight
+              }
+            }, 0)
           }
+          console.log('=== End Realtime Event ===')
         }
       )
       .on(
@@ -166,14 +192,18 @@ export function useDirectMessageChat(conversation: Conversation | null) {
       }
     },
     sendMessage: async (message: string, userId: string, fileUrl?: string, fileName?: string) => {
+      console.log('=== START sendMessage ===')
+      console.log('Params:', { message, userId, fileUrl, fileName })
       if (!conversation) return
 
       // Determine receiver_id based on the conversation
       const receiverId = conversation.user1_id === userId 
         ? conversation.user2_id 
         : conversation.user1_id
+      console.log('Determined receiverId:', receiverId)
 
-      const { error } = await supabase
+      console.log('Attempting to insert message into Supabase')
+      const { error, data } = await supabase
         .from('direct_messages')
         .insert({
           conversation_id: conversation.id,
@@ -183,11 +213,16 @@ export function useDirectMessageChat(conversation: Conversation | null) {
           file_url: fileUrl,
           file_name: fileName
         })
+        .select()
+        .single()
+
+      console.log('Insert response:', { error, data })
 
       if (error) {
-        console.error('Error sending message:', error)
+        console.error('Error in sendMessage:', error)
         throw error
       }
+      console.log('=== END sendMessage ===')
     },
     initialLoadPromise: initialLoadPromiseRef.current
   }

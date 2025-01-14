@@ -167,22 +167,50 @@ export default function Dashboard() {
           fileInfo?.name
         )
       } else if (currentConversation) {
-        await sendDirectMessage(
-          newMessage,
-          user.id,
-          fileInfo?.url,
-          fileInfo?.name
-        )
-      }
-      
-      setNewMessage('')
-      
-      // Scroll to bottom after sending
-      const messagesDiv = document.querySelector('.messages-container')
-      if (messagesDiv) {
-        setTimeout(() => {
-          messagesDiv.scrollTop = messagesDiv.scrollHeight
-        }, 100)
+        let messagePromise;
+        try {
+          messagePromise = sendDirectMessage(
+            newMessage,
+            user.id,
+            fileInfo?.url,
+            fileInfo?.name
+          )
+          
+          // Clear input immediately
+          setNewMessage('')
+
+          // Check if recipient has auto-respond enabled
+          const { data: recipientProfile } = await supabase
+            .from('profiles')
+            .select('auto_respond')
+            .eq('id', currentConversation.other_user.id)
+            .single()
+
+          if (recipientProfile?.auto_respond) {
+            await messagePromise
+            await new Promise(resolve => setTimeout(resolve, 500))
+            
+            const aiResponse = await fetch('/api/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                query: newMessage,
+                conversationId: currentConversation.id,
+                senderId: user.id,
+                receiverId: currentConversation.other_user.id
+              })
+            })
+            
+            const data = await aiResponse.json()
+            
+            if (data.status !== 'success') {
+              throw new Error('Failed to send AI response')
+            }
+          }
+        } catch (error) {
+          await messagePromise
+          throw error
+        }
       }
     } catch (error) {
       console.error('Error sending message:', error)

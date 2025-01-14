@@ -35,6 +35,7 @@ export default function EditProfileModal({
   const [username, setUsername] = useState(profile.username)
   const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url)
   const [status, setStatus] = useState<(typeof STATUS_OPTIONS)[number]['id'] | ''>('')
+  const [autoRespond, setAutoRespond] = useState(profile.auto_respond || false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -59,6 +60,10 @@ export default function EditProfileModal({
     fetchCurrentStatus()
   }, [profile.id, supabase])
 
+  useEffect(() => {
+    setAutoRespond(profile.auto_respond || false)
+  }, [profile.auto_respond])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -66,14 +71,18 @@ export default function EditProfileModal({
 
     try {
       // Update profile
+      console.log('Updating profile with auto_respond:', autoRespond)
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
           username,
           avatar_url: avatarUrl,
+          auto_respond: autoRespond,
           updated_at: new Date().toISOString()
         })
         .eq('id', profile.id)
+
+      console.log('Profile update response:', { error: profileError })
 
       if (profileError) throw profileError
 
@@ -230,6 +239,30 @@ export default function EditProfileModal({
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700">
+              AI Auto-Response
+            </label>
+            <button
+              type="button"
+              onClick={() => setAutoRespond(!autoRespond)}
+              className={`
+                relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent 
+                transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                ${autoRespond ? 'bg-blue-500' : 'bg-gray-200'}
+              `}
+            >
+              <span className="sr-only">Enable auto-response</span>
+              <span
+                className={`
+                  pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 
+                  transition duration-200 ease-in-out
+                  ${autoRespond ? 'translate-x-5' : 'translate-x-0'}
+                `}
+              />
+            </button>
           </div>
 
           <div className="flex justify-end space-x-3">

@@ -13,7 +13,7 @@ interface MessageInputProps {
   onChange: (value: string) => void
   onSubmit: (e: React.FormEvent, fileInfo?: { url: string, name: string }) => void
   placeholder?: string
-  onKeyPress?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  onSendComplete?: () => void
 }
 
 interface PendingFile {
@@ -26,7 +26,7 @@ export default function MessageInput({
   onChange,
   onSubmit,
   placeholder = 'Type a message...',
-  onKeyPress
+  onSendComplete
 }: MessageInputProps) {
   const { supabase } = useSupabase()
   const [isDragging, setIsDragging] = useState(false)
@@ -34,6 +34,7 @@ export default function MessageInput({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const isSubmittingRef = useRef(false)
   const [pendingFile, setPendingFile] = useState<PendingFile | null>(null)
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
@@ -63,9 +64,11 @@ export default function MessageInput({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    if (isSubmittingRef.current) return
     if (!value.trim() && !pendingFile) return
     
     try {
+      isSubmittingRef.current = true
       if (pendingFile) {
         setIsUploading(true)
         const timestamp = new Date().getTime()
@@ -89,10 +92,12 @@ export default function MessageInput({
       } else {
         onSubmit(e)
       }
+      onSendComplete?.()
     } catch (error) {
       console.error('Error uploading file:', error)
     } finally {
       setIsUploading(false)
+      isSubmittingRef.current = false
     }
   }
 
@@ -128,7 +133,7 @@ export default function MessageInput({
         </div>
       )}
       
-      <form onSubmit={handleSubmit} className="space-y-2">
+      <form className="space-y-2">
         {pendingFile && (
           <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-md">
             <Paperclip size={16} className="text-gray-400" />
@@ -149,7 +154,14 @@ export default function MessageInput({
               ref={textareaRef}
               value={value}
               onChange={(e) => onChange(e.target.value)}
-              onKeyPress={onKeyPress}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  if (!isSubmittingRef.current) {
+                    handleSubmit(e)
+                  }
+                }
+              }}
               placeholder={placeholder}
               rows={1}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
@@ -206,7 +218,8 @@ export default function MessageInput({
           </button>
 
           <button
-            type="submit"
+            type="button"
+            onClick={(e) => !isUploading && handleSubmit(e)}
             disabled={(!value.trim() && !pendingFile) || isUploading}
             className="p-2 text-blue-500 hover:text-blue-600 rounded-full hover:bg-blue-50 disabled:opacity-50"
           >

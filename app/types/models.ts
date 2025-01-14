@@ -32,6 +32,7 @@ export interface Profile {
   avatar_url: string | null
   email: string
   updated_at: string
+  auto_respond: boolean
 }
 
 export interface Conversation {

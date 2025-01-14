@@ -207,17 +207,10 @@ export default function ChatArea({
           onSubmit={handleSubmit}
           value={newMessage}
           onChange={setNewMessage}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              const form = e.currentTarget.form
-              if (form) {
-                // Find and click the submit button
-                const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement
-                if (submitButton && !submitButton.disabled) {
-                  submitButton.click()
-                }
-              }
+          onSendComplete={() => {
+            const container = document.querySelector('.messages-container')
+            if (container) {
+              container.scrollTop = container.scrollHeight
             }
           }}
         />
