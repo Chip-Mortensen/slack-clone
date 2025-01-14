@@ -413,6 +413,7 @@ export default function Dashboard() {
         profile={profile}
         onEditProfile={() => setIsEditProfileModalOpen(true)}
         onlineUsers={onlineUsers}
+        onUpdate={handleProfileUpdate}
       />
 
       <ChatArea

@@ -6,6 +6,7 @@ import type { Channel, Conversation, Profile } from '@/app/types'
 import type { User } from '@supabase/auth-helpers-nextjs'
 import UserAvatar from './UserAvatar'
 import { useName } from '../contexts/NameContext'
+import { useState } from 'react'
 
 interface SidebarProps {
   user: User
@@ -25,6 +26,7 @@ interface SidebarProps {
   profile: Profile | null
   onEditProfile: () => void
   onlineUsers?: string[]
+  onUpdate: () => Promise<void>
 }
 
 export default function Sidebar({
@@ -44,7 +46,8 @@ export default function Sidebar({
   onDeleteConversation,
   profile,
   onEditProfile,
-  onlineUsers = []
+  onlineUsers = [],
+  onUpdate
 }: SidebarProps) {
   const router = useRouter()
   const { getUsername } = useName()

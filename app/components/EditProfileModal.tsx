@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X } from 'lucide-react'
+import { X, Wand2 } from 'lucide-react'
 import { useSupabase } from '../supabase-provider'
 import type { Profile } from '@/app/types'
 
@@ -38,6 +38,7 @@ export default function EditProfileModal({
   const [autoRespond, setAutoRespond] = useState(profile.auto_respond || false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [generatingAvatar, setGeneratingAvatar] = useState(false)
 
   useEffect(() => {
     async function fetchCurrentStatus() {
@@ -163,6 +164,35 @@ export default function EditProfileModal({
     }
   }
 
+  const handleGenerateAvatar = async () => {
+    if (!profile?.id || generatingAvatar) return
+    
+    setGeneratingAvatar(true)
+    try {
+      const response = await fetch('/api/generate-profile-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: profile.id }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate avatar')
+      }
+
+      // Update local state immediately
+      setAvatarUrl(data.avatarUrl)
+      await onUpdate()
+    } catch (error) {
+      console.error('Error generating avatar:', error)
+      setError(error instanceof Error ? error.message : 'Failed to generate avatar')
+    } finally {
+      setGeneratingAvatar(false)
+    }
+  }
+
   if (!isOpen) return null
 
   return (
@@ -186,27 +216,63 @@ export default function EditProfileModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Avatar
             </label>
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 rounded-full bg-gray-200 flex-shrink-0">
-                {avatarUrl && (
-                  <img
-                    src={avatarUrl}
-                    alt="Avatar"
-                    className="w-16 h-16 rounded-full object-cover"
-                  />
-                )}
+            <div className="flex flex-col space-y-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-16 h-16 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
+                  {avatarUrl && (
+                    <img
+                      src={avatarUrl}
+                      alt="Avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-500">
+                    Upload a picture or generate an AI avatar
+                  </p>
+                </div>
               </div>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarUpload}
-                className="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4
-                  file:rounded-full file:border-0 file:text-sm file:font-semibold
-                  file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-              />
+              
+              <div className="flex flex-wrap gap-2">
+                <label className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm
+                  leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50
+                  focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+                  cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                    className="sr-only"
+                  />
+                  Choose File
+                </label>
+                
+                <button
+                  type="button"
+                  onClick={handleGenerateAvatar}
+                  disabled={generatingAvatar}
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm
+                    leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50
+                    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+                    disabled:opacity-50"
+                >
+                  {generatingAvatar ? (
+                    <>
+                      <div className="animate-spin mr-2">⌛</div>
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 size={16} className="mr-2" />
+                      Generate AI Avatar
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
