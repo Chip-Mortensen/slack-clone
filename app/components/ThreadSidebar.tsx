@@ -360,18 +360,6 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
           onChange={setNewReply}
           onSubmit={handleSendReply}
           placeholder="Reply in thread..."
-          onKeyPress={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              const form = e.currentTarget.form
-              if (form) {
-                const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement
-                if (submitButton && !submitButton.disabled) {
-                  submitButton.click()
-                }
-              }
-            }
-          }}
         />
       </div>
     </div>
