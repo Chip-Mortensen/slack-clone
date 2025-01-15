@@ -13,15 +13,33 @@ export default function MessageContent({ content, fileUrl, fileName, onImageLoad
   const [isImageLoaded, setIsImageLoaded] = useState(false)
 
   const renderContent = () => {
-    // Always render the content text if it exists
-    const textContent = content ? (
-      <div className="whitespace-pre-wrap mb-2">{content}</div>
-    ) : null
+    // Split content into text and mention parts using @[username] format
+    const parts = content.split(/(@\[[^\]]+\])/g)
+    const renderedContent = (
+      <div className="whitespace-pre-wrap mb-2">
+        {parts.map((part, index) => {
+          // Match @[username] format
+          const match = part.match(/@\[([^\]]+)\]/)
+          if (match) {
+            const username = match[1] // Extract username from @[username]
+            return (
+              <span
+                key={index}
+                className="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded mx-0.5"
+              >
+                @{username}
+              </span>
+            )
+          }
+          return <span key={index}>{part}</span>
+        })}
+      </div>
+    )
 
     if (fileUrl && isImageFile) {
       return (
         <div className="space-y-2">
-          {textContent} {/* Show text content above image if it exists */}
+          {renderedContent}
           <div 
             className="w-fit h-[300px] bg-gray-50 rounded-lg relative overflow-hidden"
             style={{ minWidth: '200px' }}
@@ -63,7 +81,7 @@ export default function MessageContent({ content, fileUrl, fileName, onImageLoad
       )
     }
     
-    return textContent || <div>No content</div>
+    return renderedContent
   }
 
   return (

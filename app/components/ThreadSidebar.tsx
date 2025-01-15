@@ -184,15 +184,24 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
     }
   }, [parentMessage, supabase, replies])
 
+  // Add this function to extract mentions
+  const extractMentions = (content: string) => {
+    const mentionRegex = /@\[([^\]]+)\]/g;
+    const matches = content.match(mentionRegex);
+    if (!matches) return [];
+    return matches.map(match => match.slice(2, -1)); // Remove @[ and ]
+  };
+
   const handleSendReply = async (e: React.FormEvent, fileInfo?: { url: string, name: string }) => {
-    e.preventDefault()
-    if (!parentMessage || (!newReply.trim() && !fileInfo)) return
+    e.preventDefault();
+    if (!parentMessage || (!newReply.trim() && !fileInfo)) return;
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('No user found')
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
       
-      const { data, error } = await supabase
+      // First, send the original reply
+      const { data: reply, error } = await supabase
         .from('message_replies')
         .insert({
           message_id: parentMessage.id,
@@ -202,13 +211,68 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
           file_name: fileInfo?.name
         })
         .select()
+        .single();
 
-      if (error) throw error
-      setNewReply('')
+      if (error) throw error;
+
+      // Extract mentions from the reply
+      const mentionedUsernames = extractMentions(newReply);
+      console.log('Extracted mentions:', mentionedUsernames);
+      
+      if (mentionedUsernames.length > 0) {
+        // Get profiles of mentioned users who have auto-respond enabled
+        const { data: profiles, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, username, auto_respond')
+          .in('username', mentionedUsernames)
+          .eq('auto_respond', true);
+
+        if (profileError) {
+          console.error('Error fetching profiles:', profileError);
+          return;
+        }
+
+        console.log('Found profiles with auto-respond:', profiles);
+
+        // Generate AI responses for each user with auto-respond enabled
+        const responsePromises = profiles?.map(async (profile) => {
+          console.log('Generating response for:', profile.username);
+          try {
+            const response = await fetch('/api/reply-chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                messageId: parentMessage.id,
+                replyId: reply.id,
+                content: newReply,
+                senderId: user.id,
+                responderId: profile.id
+              })
+            });
+
+            if (!response.ok) {
+              throw new Error(`Failed to generate AI response for ${profile.username}`);
+            }
+
+            const result = await response.json();
+            console.log('AI response result:', result);
+            return result;
+          } catch (error) {
+            console.error(`Error generating AI response for ${profile.username}:`, error);
+            return null;
+          }
+        }) || [];
+
+        // Wait for all AI responses to complete
+        const results = await Promise.allSettled(responsePromises);
+        console.log('AI response results:', results);
+      }
+
+      setNewReply('');
     } catch (error) {
-      console.error('Error sending reply:', error)
+      console.error('Error sending reply:', error);
     }
-  }
+  };
 
   // Get current user
   useEffect(() => {

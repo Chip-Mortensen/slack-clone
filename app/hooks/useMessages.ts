@@ -2,6 +2,19 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSupabase } from '../supabase-provider'
 import type { Message } from '@/app/types'
 
+// Helper to extract mentions from message content
+const extractMentions = (content: string): string[] => {
+  const mentionRegex = /@\[([^\]]+)\]/g
+  const mentions: string[] = []
+  let match
+
+  while ((match = mentionRegex.exec(content)) !== null) {
+    mentions.push(match[1])
+  }
+
+  return mentions
+}
+
 export function useMessages(channelId: string | number | null) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
@@ -186,17 +199,75 @@ export function useMessages(channelId: string | number | null) {
   ) => {
     if (!channelId) return
 
-    const { error } = await supabase
-      .from('messages')
-      .insert({
-        content,
-        user_id: userId,
-        channel_id: channelId,
-        file_url: fileUrl,
-        file_name: fileName
-      })
+    try {
+      // First, send the original message
+      const { data: message, error: messageError } = await supabase
+        .from('messages')
+        .insert({
+          content,
+          user_id: userId,
+          channel_id: channelId,
+          file_url: fileUrl,
+          file_name: fileName
+        })
+        .select()
+        .single()
 
-    if (error) {
+      if (messageError) throw messageError
+
+      // Extract mentions from the message
+      const mentionedUsernames = extractMentions(content)
+      console.log('Extracted mentions:', mentionedUsernames)
+      
+      if (mentionedUsernames.length > 0) {
+        // Get profiles of mentioned users who have auto-respond enabled
+        const { data: profiles, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, username, auto_respond')
+          .in('username', mentionedUsernames)
+          .eq('auto_respond', true)
+
+        if (profileError) {
+          console.error('Error fetching profiles:', profileError)
+          return
+        }
+
+        console.log('Found profiles with auto-respond:', profiles)
+
+        // Generate AI responses for each user with auto-respond enabled
+        const responsePromises = profiles?.map(async (profile) => {
+          console.log('Generating response for:', profile.username)
+          try {
+            const response = await fetch('/api/channel-chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                messageId: message.id,
+                channelId,
+                content,
+                senderId: userId,
+                responderId: profile.id
+              })
+            })
+
+            if (!response.ok) {
+              throw new Error(`Failed to generate AI response for ${profile.username}`)
+            }
+
+            const result = await response.json()
+            console.log('AI response result:', result)
+            return result
+          } catch (error) {
+            console.error(`Error generating AI response for ${profile.username}:`, error)
+            return null
+          }
+        }) || []
+
+        // Wait for all AI responses to complete
+        const results = await Promise.allSettled(responsePromises)
+        console.log('AI response results:', results)
+      }
+    } catch (error) {
       console.error('Error sending message:', error)
       throw error
     }
