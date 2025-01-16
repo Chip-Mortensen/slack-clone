@@ -29,7 +29,8 @@ export function useDirectMessageChat(conversation: Conversation | null) {
             emoji,
             user_id,
             created_at
-          )
+          ),
+          voice_url
         `)
         .eq('conversation_id', conversation.id)
 
@@ -119,7 +120,8 @@ export function useDirectMessageChat(conversation: Conversation | null) {
                 emoji,
                 user_id,
                 created_at
-              )
+              ),
+              voice_url
             `)
             .eq('id', payload.new.id)
             .single()
@@ -138,6 +140,23 @@ export function useDirectMessageChat(conversation: Conversation | null) {
             }, 0)
           }
           console.log('=== End Realtime Event ===')
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'direct_messages',
+          filter: `conversation_id=eq.${conversation.id}`
+        },
+        async (payload) => {
+          // Update the message with new voice_url
+          setMessages(prev => prev.map(msg => 
+            msg.id === payload.new.id 
+              ? { ...msg, voice_url: payload.new.voice_url }
+              : msg
+          ))
         }
       )
       .on(
@@ -163,7 +182,8 @@ export function useDirectMessageChat(conversation: Conversation | null) {
                 emoji,
                 user_id,
                 created_at
-              )
+              ),
+              voice_url
             `)
             .eq('conversation_id', conversation.id)
             .order('created_at', { ascending: false })
@@ -222,6 +242,21 @@ export function useDirectMessageChat(conversation: Conversation | null) {
         console.error('Error in sendMessage:', error)
         throw error
       }
+
+      // Trigger voice generation
+      fetch('/api/generate-voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: message,
+          messageId: data.id,
+          messageType: 'direct_message'
+        })
+      }).catch(error => {
+        console.error('Voice generation error:', error)
+        // Don't throw - we want voice generation to be non-blocking
+      })
+
       console.log('=== END sendMessage ===')
     },
     initialLoadPromise: initialLoadPromiseRef.current

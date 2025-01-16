@@ -23,6 +23,7 @@ export interface Message {
     name: string
   }
   reactions?: MessageReaction[]
+  voice_url?: string
 }
 
 export interface Profile {
@@ -64,6 +65,7 @@ export interface DirectMessage {
     user2_id: string
   }
   reactions?: MessageReaction[]
+  voice_url?: string
 }
 
 export interface MessageReaction {
@@ -84,4 +86,5 @@ export interface MessageReply {
   file_name?: string
   profiles: Profile
   reactions?: MessageReaction[]
+  voice_url?: string
 } 

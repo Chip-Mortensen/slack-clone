@@ -45,20 +45,38 @@ export async function POST(request: Request) {
     const response = await generateAIResponse(promptWithContext);
 
     // Insert the response into the direct_messages table
-    const { error: insertError } = await supabase
+    const { data: message, error: insertError } = await supabase
       .from('direct_messages')
       .insert({
-        conversation_id: conversationId,
+        message: response.text,
         sender_id: receiverId,
         receiver_id: senderId,
-        message: response.text
-      });
+        conversation_id: conversationId
+      })
+      .select()
+      .single()
 
     if (insertError) {
-      throw insertError;
+      console.error('Error inserting AI response:', insertError)
+      return NextResponse.json({ error: 'Failed to save AI response' }, { status: 500 })
     }
 
-    return NextResponse.json({ status: "success", response: response.text });
+    // Trigger voice generation for AI response
+    const origin = request.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL;
+    fetch(`${origin}/api/generate-voice`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: response.text,
+        messageId: message.id,
+        messageType: 'direct_message'
+      })
+    }).catch(error => {
+      console.error('Voice generation error for AI response:', error)
+      // Don't throw - we want voice generation to be non-blocking
+    })
+
+    return NextResponse.json({ status: 'success', message: 'AI response sent' })
   } catch (error: any) {
     console.error("Error in chat:", error);
     return NextResponse.json({ status: "error", error: error.message }, { status: 500 });

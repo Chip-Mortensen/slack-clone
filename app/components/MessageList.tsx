@@ -10,6 +10,7 @@ import { useScrollManager } from '../hooks/useScrollManager'
 import { useSupabase } from '../supabase-provider'
 import { useState } from 'react'
 import { MessageSquare } from 'lucide-react'
+import AudioPlayer from './AudioPlayer'
 
 interface MessageListProps {
   messages: (Message | DirectMessage)[]
@@ -263,7 +264,8 @@ export default function MessageList({
       isChannelMessage,
       fileUrl: message.file_url,
       fileName: message.file_name,
-      userId
+      userId,
+      voice_url: message.voice_url
     }
   }
 
@@ -322,7 +324,8 @@ export default function MessageList({
             isChannelMessage,
             fileUrl,
             fileName,
-            userId 
+            userId,
+            voice_url 
           } = getMessageDisplay(message)
           
           const username = getUsername(userId.toString()) || 'Unknown User'
@@ -351,6 +354,7 @@ export default function MessageList({
                   <span className="text-sm text-gray-500">
                     {formatTimestamp(timestamp)}
                   </span>
+                  {voice_url && <AudioPlayer url={voice_url} />}
                 </div>
                 <MessageContent 
                   content={content}

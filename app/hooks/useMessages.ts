@@ -51,7 +51,8 @@ export function useMessages(channelId: string | number | null) {
             emoji,
             user_id,
             created_at
-          )
+          ),
+          voice_url
         `)
         .eq('channel_id', channelId)
 
@@ -140,7 +141,8 @@ export function useMessages(channelId: string | number | null) {
                 emoji,
                 user_id,
                 created_at
-              )
+              ),
+              voice_url
             `)
             .eq('id', payload.new.id)
             .single()
@@ -148,6 +150,23 @@ export function useMessages(channelId: string | number | null) {
           if (!error && data) {
             setMessages(prev => [...prev, data])
           }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `channel_id=eq.${channelId}`
+        },
+        async (payload) => {
+          // Update the message with new voice_url
+          setMessages(prev => prev.map(msg => 
+            msg.id === payload.new.id 
+              ? { ...msg, voice_url: payload.new.voice_url }
+              : msg
+          ))
         }
       )
       .on(
@@ -173,7 +192,8 @@ export function useMessages(channelId: string | number | null) {
                 emoji,
                 user_id,
                 created_at
-              )
+              ),
+              voice_url
             `)
             .eq('channel_id', channelId)
             .order('created_at', { ascending: false })
@@ -214,6 +234,20 @@ export function useMessages(channelId: string | number | null) {
         .single()
 
       if (messageError) throw messageError
+
+      // Trigger voice generation
+      fetch('/api/generate-voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: content,
+          messageId: message.id,
+          messageType: 'message'
+        })
+      }).catch(error => {
+        console.error('Voice generation error:', error)
+        // Don't throw - we want voice generation to be non-blocking
+      })
 
       // Extract mentions from the message
       const mentionedUsernames = extractMentions(content)

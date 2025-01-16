@@ -9,6 +9,7 @@ import MessageContent from './MessageContent'
 import UserAvatar from './UserAvatar'
 import MessageReactions from './MessageReactions'
 import { useName } from '../contexts/NameContext'
+import AudioPlayer from './AudioPlayer'
 
 interface ThreadSidebarProps {
   parentMessage: Message | null
@@ -112,7 +113,8 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
               emoji,
               user_id,
               created_at
-            )
+            ),
+            voice_url
           `)
           .eq('message_id', parentMessage.id)
           .order('created_at', { ascending: true })
@@ -154,7 +156,8 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
                 emoji,
                 user_id,
                 created_at
-              )
+              ),
+              voice_url
             `)
             .eq('id', payload.new.id)
             .single()
@@ -162,6 +165,23 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
           if (!error && data) {
             setReplies(prev => [...prev, data])
           }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'message_replies',
+          filter: `message_id=eq.${parentMessage.id}`
+        },
+        async (payload) => {
+          // Update the reply with new voice_url
+          setReplies(prev => prev.map(reply => 
+            reply.id === payload.new.id 
+              ? { ...reply, voice_url: payload.new.voice_url }
+              : reply
+          ))
         }
       )
       .on(
@@ -214,6 +234,20 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
         .single();
 
       if (error) throw error;
+
+      // Trigger voice generation
+      fetch('/api/generate-voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: newReply,
+          messageId: reply.id,
+          messageType: 'message_reply'
+        })
+      }).catch(error => {
+        console.error('Voice generation error:', error)
+        // Don't throw - we want voice generation to be non-blocking
+      });
 
       // Extract mentions from the reply
       const mentionedUsernames = extractMentions(newReply);
@@ -351,6 +385,7 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
               <span className="text-sm text-gray-500">
                 {formatTimestamp(new Date(parentMessage.created_at))}
               </span>
+              {parentMessage.voice_url && <AudioPlayer url={parentMessage.voice_url} />}
             </div>
             <MessageContent 
               content={parentMessage.content}
@@ -383,6 +418,7 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
                 <span className="text-sm text-gray-500">
                   {formatTimestamp(new Date(reply.created_at))}
                 </span>
+                {reply.voice_url && <AudioPlayer url={reply.voice_url} />}
               </div>
               <MessageContent 
                 content={reply.content}
