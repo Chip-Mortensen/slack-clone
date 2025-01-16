@@ -214,21 +214,58 @@ export default function MessageInput({
     if (!textareaRef.current) return
     
     const selection = window.getSelection()
-    if (!selection) return
+    if (!selection || !selection.rangeCount) return
     
     const range = selection.getRangeAt(0)
-    const text = textareaRef.current.textContent || ''
-    const start = range.startOffset
-    const newText = text.slice(0, start) + emojiData.emoji + text.slice(range.endOffset)
+    const container = range.startContainer
+    const offset = range.startOffset
     
-    // Update content
-    textareaRef.current.textContent = newText
+    // Get all text before the cursor
+    let beforeText = ''
+    const treeWalker = document.createTreeWalker(
+      textareaRef.current,
+      NodeFilter.SHOW_TEXT,
+      null
+    )
+    
+    let node = treeWalker.nextNode()
+    while (node) {
+      if (node === container) {
+        beforeText += node.textContent?.slice(0, offset)
+        break
+      }
+      beforeText += node.textContent
+      node = treeWalker.nextNode()
+    }
+    
+    // Get all text after the cursor
+    let afterText = ''
+    if (container === range.endContainer) {
+      afterText = container.textContent?.slice(offset) || ''
+    } else {
+      while (node) {
+        afterText += node.textContent
+        node = treeWalker.nextNode()
+      }
+    }
+    
+    // Create new text with emoji
+    const newText = beforeText + emojiData.emoji + afterText
+    
+    // Create a new text node with the updated content
+    const textNode = document.createTextNode(newText)
+    
+    // Clear existing content and append new text node
+    while (textareaRef.current.firstChild) {
+      textareaRef.current.removeChild(textareaRef.current.firstChild)
+    }
+    textareaRef.current.appendChild(textNode)
     
     // Set cursor position after emoji
-    const newPosition = start + emojiData.emoji.length
+    const newPosition = beforeText.length + emojiData.emoji.length
     const newRange = document.createRange()
-    newRange.setStart(textareaRef.current.firstChild || textareaRef.current, newPosition)
-    newRange.setEnd(textareaRef.current.firstChild || textareaRef.current, newPosition)
+    newRange.setStart(textNode, newPosition)
+    newRange.setEnd(textNode, newPosition)
     selection.removeAllRanges()
     selection.addRange(newRange)
     
@@ -428,7 +465,7 @@ export default function MessageInput({
             <button
               type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="absolute right-2 bottom-[12px] p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
+              className="absolute top-2 right-2 bottom-[12px] p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
             >
               <Smile size={20} />
             </button>

@@ -5,8 +5,10 @@ import { useSupabase } from '../supabase-provider'
 import { useAvatar } from '../contexts/AvatarContext'
 import { useName } from '../contexts/NameContext'
 import { useUserStatus } from '../contexts/UserStatusContext'
+import { useAutoRespond } from '../contexts/AutoRespondContext'
 import { profileCache } from '../utils/profileCache'
 import { useDebounce } from '../hooks/useDebounce'
+import { Wand2 } from 'lucide-react'
 
 const STATUS_EMOJIS = {
   in_meeting: '🗓️',
@@ -29,8 +31,10 @@ export default function UserAvatar({
   const { getAvatarUrl, loadAvatarUrl } = useAvatar()
   const { getUsername, loadUsername } = useName()
   const { status, refresh } = useUserStatus(userId.toString())
+  const { getAutoRespondStatus, loadAutoRespondStatus } = useAutoRespond()
   const realtimeAvatarUrl = getAvatarUrl(userId.toString())
   const username = getUsername(userId.toString()) || 'Loading...'
+  const hasAutoRespond = getAutoRespondStatus(userId.toString())
 
   const sizeClasses = {
     sm: 'w-6 h-6',
@@ -44,6 +48,12 @@ export default function UserAvatar({
     lg: 'w-3 h-3 border-2'
   }
 
+  const wandIconClasses = {
+    sm: 'w-3 h-3',
+    md: 'w-4 h-4',
+    lg: 'w-5 h-5'
+  }
+
   useEffect(() => {
     if (!showStatus) return;
     
@@ -51,6 +61,7 @@ export default function UserAvatar({
       await Promise.all([
         loadAvatarUrl(userId.toString()),
         loadUsername(userId.toString()),
+        loadAutoRespondStatus(userId.toString()),
         refresh()
       ]);
     };
@@ -115,8 +126,20 @@ export default function UserAvatar({
           )}
         </>
       )}
+      {hasAutoRespond && (
+        <div 
+          className="absolute bottom-0 left-0 rounded-full p-0.5"
+          style={{
+            transform: 'translate(-25%, 25%)'
+          }}
+          title="AI Auto-Response Enabled"
+        >
+          <Wand2 className={`${wandIconClasses[size]} text-blue-500`} />
+        </div>
+      )}
       <div className="sr-only">
         Status: {online ? 'online' : 'offline'} for user {userId}
+        {hasAutoRespond && ', AI Auto-Response Enabled'}
       </div>
     </div>
   )

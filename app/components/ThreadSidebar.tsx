@@ -217,7 +217,6 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
 
       // Extract mentions from the reply
       const mentionedUsernames = extractMentions(newReply);
-      console.log('Extracted mentions:', mentionedUsernames);
       
       if (mentionedUsernames.length > 0) {
         // Get profiles of mentioned users who have auto-respond enabled
@@ -232,11 +231,8 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
           return;
         }
 
-        console.log('Found profiles with auto-respond:', profiles);
-
         // Generate AI responses for each user with auto-respond enabled
         const responsePromises = profiles?.map(async (profile) => {
-          console.log('Generating response for:', profile.username);
           try {
             const response = await fetch('/api/reply-chat', {
               method: 'POST',
@@ -254,9 +250,7 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
               throw new Error(`Failed to generate AI response for ${profile.username}`);
             }
 
-            const result = await response.json();
-            console.log('AI response result:', result);
-            return result;
+            return await response.json();
           } catch (error) {
             console.error(`Error generating AI response for ${profile.username}:`, error);
             return null;
@@ -264,8 +258,7 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
         }) || [];
 
         // Wait for all AI responses to complete
-        const results = await Promise.allSettled(responsePromises);
-        console.log('AI response results:', results);
+        await Promise.allSettled(responsePromises);
       }
 
       setNewReply('');

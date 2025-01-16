@@ -24,15 +24,6 @@ export default function MentionSuggestions({
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    console.log('MentionSuggestions render:', {
-      visible,
-      suggestionsCount: suggestions.length,
-      inputRect
-    })
-  }, [visible, suggestions.length, inputRect])
-
-  // Position the dropdown below the @ symbol
-  useEffect(() => {
     if (!dropdownRef.current || !inputRect || !visible) return
 
     const dropdown = dropdownRef.current
@@ -72,7 +63,6 @@ export default function MentionSuggestions({
   }, [inputRect, visible, suggestions.length])
 
   if (!visible || suggestions.length === 0) {
-    console.log('MentionSuggestions not rendering:', { visible, suggestionsCount: suggestions.length })
     return null
   }
 

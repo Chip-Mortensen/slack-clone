@@ -45,6 +45,7 @@ export interface Conversation {
     id: string | number
     username: string
     avatar_url?: string
+    full_name?: string
   }
 }
 

@@ -1,14 +1,17 @@
-export type SearchToken = {
+export interface SearchToken {
   type: 'channel' | 'user' | 'text'
-  value: string
-  // For channels/users, we store both display value and actual ID
   id?: string | number
+  value: string
   displayValue?: string
+  avatarUrl?: string
+  fullName?: string
 }
 
-export type SearchSuggestion = {
+export interface SearchSuggestion {
   type: 'channel' | 'user'
   id: string | number
   displayValue: string
-  searchValue: string // The value to match against when filtering suggestions
+  searchValue: string
+  avatarUrl?: string
+  fullName?: string
 } 

@@ -36,7 +36,9 @@ export default function SearchInput({ channels, conversations, currentContext, o
             type: 'user',
             id: currentContext.id,
             value: conversations.find(c => c.id === currentContext.id)?.other_user.username || '',
-            displayValue: conversations.find(c => c.id === currentContext.id)?.other_user.username || ''
+            displayValue: conversations.find(c => c.id === currentContext.id)?.other_user.username || '',
+            avatarUrl: conversations.find(c => c.id === currentContext.id)?.other_user.avatar_url,
+            fullName: conversations.find(c => c.id === currentContext.id)?.other_user.full_name
           }
       
       setTokens(currentTokens => {
@@ -76,7 +78,9 @@ export default function SearchInput({ channels, conversations, currentContext, o
           type: 'user' as const,
           id: conv.id,
           displayValue: conv.other_user.username,
-          searchValue: conv.other_user.username.toLowerCase()
+          searchValue: conv.other_user.username.toLowerCase(),
+          avatarUrl: conv.other_user.avatar_url,
+          fullName: conv.other_user.full_name
         }))
       return userSuggestions
     }
@@ -129,7 +133,9 @@ export default function SearchInput({ channels, conversations, currentContext, o
           type: suggestionType,
           id: suggestion.id,
           value: suggestion.searchValue,
-          displayValue: suggestion.displayValue
+          displayValue: suggestion.displayValue,
+          avatarUrl: suggestion.avatarUrl,
+          fullName: suggestion.fullName
         } as SearchToken]
         setTokens(newTokens)
         onSearch(newTokens)
@@ -207,9 +213,18 @@ export default function SearchInput({ channels, conversations, currentContext, o
               key={index}
               className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded"
             >
-              {token.type === 'channel' && '#'}
-              {token.type === 'user' && '@'}
-              {token.displayValue || token.value}
+              {token.type === 'user' && token.avatarUrl ? (
+                <img 
+                  src={token.avatarUrl} 
+                  alt={token.displayValue || token.value}
+                  className="w-5 h-5 rounded-full"
+                />
+              ) : token.type === 'user' ? (
+                <div className="w-5 h-5 rounded-full bg-gray-200" />
+              ) : token.type === 'channel' && (
+                '#'
+              )}
+              <span>{token.displayValue || token.value}</span>
               <button
                 type="button"
                 onClick={(e) => {
@@ -245,8 +260,25 @@ export default function SearchInput({ channels, conversations, currentContext, o
                 index === selectedSuggestionIndex ? 'bg-gray-100' : ''
               }`}
             >
-              {suggestion.type === 'channel' ? '#' : '@'}
-              {suggestion.displayValue}
+              <div className="flex items-center gap-2">
+                {suggestion.type === 'user' && suggestion.avatarUrl ? (
+                  <img 
+                    src={suggestion.avatarUrl} 
+                    alt={suggestion.displayValue}
+                    className="w-6 h-6 rounded-full"
+                  />
+                ) : suggestion.type === 'user' ? (
+                  <div className="w-6 h-6 rounded-full bg-gray-200" />
+                ) : suggestion.type === 'channel' && (
+                  <span className="text-gray-500">#</span>
+                )}
+                <div>
+                  <div className="font-medium">{suggestion.displayValue}</div>
+                  {suggestion.type === 'user' && suggestion.fullName && (
+                    <div className="text-sm text-gray-500">{suggestion.fullName}</div>
+                  )}
+                </div>
+              </div>
             </button>
           ))}
         </div>
