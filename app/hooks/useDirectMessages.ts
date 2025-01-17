@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSupabase } from '../supabase-provider'
-import type { Conversation, DirectMessage } from '@/app/types'
+import type { Conversation } from '@/app/types/models'
+import { profileCache } from '../utils/profileCache'
 
 export function useDirectMessages() {
   const { supabase } = useSupabase()
@@ -35,6 +36,16 @@ export function useDirectMessages() {
           ...conv,
           other_user: conv.user1_id === userData.user.id ? conv.user2 : conv.user1
         }))
+
+        // Cache avatar URLs for both users in each conversation
+        data.forEach(conv => {
+          if (conv.user1?.avatar_url) {
+            profileCache.set(`avatar_${conv.user1.id}`, conv.user1.avatar_url)
+          }
+          if (conv.user2?.avatar_url) {
+            profileCache.set(`avatar_${conv.user2.id}`, conv.user2.avatar_url)
+          }
+        })
 
         setConversations(transformedData)
       } catch (error) {
@@ -120,9 +131,20 @@ export function useDirectMessages() {
             .single()
 
           if (fetchError) throw fetchError
+
+          // Cache the avatar URL from the existing conversation
+          if (existingConv?.other_user?.avatar_url) {
+            profileCache.set(`avatar_${existingConv.other_user.id}`, existingConv.other_user.avatar_url)
+          }
+
           return existingConv
         }
         throw error
+      }
+
+      // Cache the avatar URL from the new conversation
+      if (data?.other_user?.avatar_url) {
+        profileCache.set(`avatar_${data.other_user.id}`, data.other_user.avatar_url)
       }
 
       return data

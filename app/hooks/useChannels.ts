@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSupabase } from '../supabase-provider'
-import type { Channel } from '@/app/types'
+import type { Channel } from '@/app/types/models'
+import { profileCache } from '../utils/profileCache'
 
 export function useChannels() {
   const { supabase } = useSupabase()
@@ -13,10 +14,23 @@ export function useChannels() {
       try {
         const { data, error } = await supabase
           .from('channels')
-          .select('*')
+          .select(`
+            *,
+            creator:profiles!channels_created_by_fkey (
+              id, username, avatar_url
+            )
+          `)
           .order('created_at', { ascending: true })
 
         if (error) throw error
+
+        // Cache creator avatar URLs
+        data?.forEach(channel => {
+          if (channel.creator?.avatar_url) {
+            profileCache.set(`avatar_${channel.creator.id}`, channel.creator.avatar_url)
+          }
+        })
+
         setChannels(data || [])
       } catch (error) {
         console.error('Error fetching channels:', error)
@@ -67,10 +81,21 @@ export function useChannels() {
           name,
           created_by: userId
         })
-        .select()
+        .select(`
+          *,
+          creator:profiles!channels_created_by_fkey (
+            id, username, avatar_url
+          )
+        `)
         .single()
 
       if (error) throw error
+
+      // Cache creator avatar URL
+      if (data?.creator?.avatar_url) {
+        profileCache.set(`avatar_${data.creator.id}`, data.creator.avatar_url)
+      }
+
       return data
     } catch (error) {
       console.error('Error creating channel:', error)

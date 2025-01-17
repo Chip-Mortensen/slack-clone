@@ -128,13 +128,7 @@ export default function Dashboard() {
     getProfile()
   }, [user, supabase])
 
-  useEffect(() => {
-    if (channels.length > 0 && !currentChannel && !currentConversation && !localStorage.getItem('lastView')) {
-      setCurrentChannel(channels[0])
-      localStorage.setItem('lastView', 'channel')
-    }
-  }, [channels, currentChannel, currentConversation])
-
+  // Store view type preferences
   useEffect(() => {
     if (currentChannel) {
       localStorage.setItem('lastView', 'channel')
