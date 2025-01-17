@@ -169,8 +169,7 @@ export default function EditProfileModal({
     
     setGeneratingAvatar(true)
     try {
-      // Step 1: Generate the image with DALL-E
-      const generateResponse = await fetch('/api/generate-profile-image', {
+      const response = await fetch('/api/generate-profile-image', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -178,30 +177,13 @@ export default function EditProfileModal({
         body: JSON.stringify({ userId: profile.id }),
       })
 
-      const generateData = await generateResponse.json()
-      if (!generateResponse.ok) {
-        throw new Error(generateData.error || 'Failed to generate avatar')
-      }
-
-      // Step 2: Save the generated image
-      const saveResponse = await fetch('/api/save-profile-image', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          imageUrl: generateData.imageUrl,
-          userId: generateData.userId
-        }),
-      })
-
-      const saveData = await saveResponse.json()
-      if (!saveResponse.ok) {
-        throw new Error(saveData.error || 'Failed to save avatar')
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate avatar')
       }
 
       // Update local state immediately
-      setAvatarUrl(saveData.avatarUrl)
+      setAvatarUrl(data.avatarUrl)
       await onUpdate()
     } catch (error) {
       console.error('Error generating avatar:', error)
