@@ -1,13 +1,10 @@
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { ChatOpenAI } from "@langchain/openai";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
-import { Pinecone } from "@pinecone-database/pinecone";
+import { pinecone } from "../../lib/pinecone";
 import { fetchMessageContext } from "./message-context";
-import { supabase } from "../lib/supabase-server";
+import { supabase } from "../../lib/supabase-service";
 import { PostgrestSingleResponse } from "@supabase/supabase-js";
-
-// Initialize Pinecone client
-const pinecone = new Pinecone();
 
 interface PineconeDoc {
   metadata: {

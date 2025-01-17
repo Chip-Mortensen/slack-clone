@@ -6,7 +6,7 @@ import path from 'path';
 config({ path: path.resolve(process.cwd(), '.env.local') });
 
 import { createClient } from "@supabase/supabase-js";
-import { Pinecone } from "@pinecone-database/pinecone";
+import { pinecone } from "../lib/pinecone";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { Document } from "@langchain/core/documents";
@@ -31,8 +31,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-
-const pinecone = new Pinecone();
 
 // Fetch unvectorized data from Supabase
 async function fetchUnvectorizedData() {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "../../lib/supabase-server";
+import { supabase } from "../../../lib/supabase-service";
 import { fetchProfiles } from "../../utils/profiles";
 import { 
   generateEmbeddingAndQueryPinecone, 

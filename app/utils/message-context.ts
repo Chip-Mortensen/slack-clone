@@ -1,4 +1,4 @@
-import { supabase } from "../lib/supabase-server";
+import { supabase } from "../../lib/supabase-service";
 import { PostgrestSingleResponse } from "@supabase/supabase-js";
 
 interface Message {
