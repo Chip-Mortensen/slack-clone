@@ -244,6 +244,7 @@ export function useDirectMessageChat(conversation: Conversation | null) {
       }
 
       // Trigger voice generation
+      /* Commented out to prevent API usage
       fetch('/api/generate-voice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -256,6 +257,7 @@ export function useDirectMessageChat(conversation: Conversation | null) {
         console.error('Voice generation error:', error)
         // Don't throw - we want voice generation to be non-blocking
       })
+      */
 
       console.log('=== END sendMessage ===')
     },

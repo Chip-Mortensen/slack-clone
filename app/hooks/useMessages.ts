@@ -236,6 +236,7 @@ export function useMessages(channelId: string | number | null) {
       if (messageError) throw messageError
 
       // Trigger voice generation
+      /* Commented out to prevent API usage
       fetch('/api/generate-voice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -248,6 +249,7 @@ export function useMessages(channelId: string | number | null) {
         console.error('Voice generation error:', error)
         // Don't throw - we want voice generation to be non-blocking
       })
+      */
 
       // Extract mentions from the message
       const mentionedUsernames = extractMentions(content)

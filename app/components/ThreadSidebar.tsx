@@ -236,6 +236,7 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
       if (error) throw error;
 
       // Trigger voice generation
+      /* Commented out to prevent API usage
       fetch('/api/generate-voice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -248,6 +249,7 @@ export default function ThreadSidebar({ parentMessage, onClose }: ThreadSidebarP
         console.error('Voice generation error:', error)
         // Don't throw - we want voice generation to be non-blocking
       });
+      */
 
       // Extract mentions from the reply
       const mentionedUsernames = extractMentions(newReply);

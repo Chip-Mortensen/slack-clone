@@ -52,6 +52,7 @@ export async function POST(request: Request) {
     }
 
     // Trigger voice generation for AI response
+    /* Commented out to prevent API usage
     const origin = request.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL;
     fetch(`${origin}/api/generate-voice`, {
       method: 'POST',
@@ -65,6 +66,7 @@ export async function POST(request: Request) {
       console.error('Voice generation error for AI response:', error)
       // Don't throw - we want voice generation to be non-blocking
     })
+    */
 
     return NextResponse.json({ status: 'success', message: 'AI response sent' })
   } catch (error: any) {
